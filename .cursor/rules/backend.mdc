@@ -1,9 +1,14 @@
 ---
 description: 
+globs: utils/supabase/middleware/*.ts,utils/supabase/*.ts
+alwaysApply: false
+---
+---
+description: 
 globs: 
 alwaysApply: false
 ---
 - Use Supabase for backend services, including authentication and database interaction
 - Follow Supabase guildelines for security and performence.
-
 - Use Zod Schemas to validate data exchanged with the backend
+- Use SupabaseClient type from  `utils/supabase/client.ts` , not from `@supabase/supabase-js`
