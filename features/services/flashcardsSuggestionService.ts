@@ -6,16 +6,22 @@ import type {
   FlashcardDTO,
 } from "@/types";
 import { randomUUID } from "crypto";
-// @ts-ignore: openrouter client does not have type declarations
-const OpenRouter = require("openrouter");
-import { getSuggestion, setSuggestion, deleteSuggestion } from "@/features/services/suggestionsCache";
+import OpenAI from "openai";
+import {
+  getSuggestion,
+  setSuggestion,
+  deleteSuggestion,
+} from "@/features/services/suggestionsCache";
 
-// Configure Openrouter client
+// Configure OpenAI client with OpenRouter base URL
 const openrouterApiKey = process.env.OPENROUTER_API_KEY;
 if (!openrouterApiKey) {
   throw new Error("Missing Openrouter API key");
 }
-const openRouterClient = new OpenRouter({ apiKey: openrouterApiKey });
+const openai = new OpenAI({
+  apiKey: openrouterApiKey,
+  baseURL: "https://openrouter.ai/api/v1",
+});
 
 // Cache moved to suggestionsCache module
 
@@ -28,18 +34,40 @@ export class FlashcardsSuggestionService {
     if (!text) {
       throw new Error("Text is required");
     }
+
     // Call Openrouter AI service to generate suggestions
-    // TODO: integrate actual API call using openRouterClient
-    const aiResponse = await openRouterClient.generate({ text });
-    // Map raw AI response to AISuggestionDTO with unique IDs
-    const suggestions: AISuggestionDTO[] = aiResponse.suggestions.map((item: any) => ({
-      id: randomUUID(),
-      question: item.question,
-      answer: item.answer,
-    }));
-    // Store suggestions in cache with TTL
-    suggestions.forEach(setSuggestion);
-    return suggestions;
+    const response = await openai.completions.create({
+      model: "openai/gpt-3.5-turbo", // Można dostosować model według potrzeb
+      prompt: `Przeanalizuj poniższy tekst i wygeneruj fiszki z pytaniami i odpowiedziami:
+      
+      ${text}
+      
+      Zwróć tablicę obiektów JSON w formacie:
+      [{"question": "pytanie1", "answer": "odpowiedź1"}, {"question": "pytanie2", "answer": "odpowiedź2"}]`,
+      max_tokens: 2000,
+      temperature: 0.7,
+    });
+
+    try {
+      // Parse the JSON response
+      const parsedContent = JSON.parse(response.choices[0]?.text || "[]");
+
+      // Validate and map to AISuggestionDTO with unique IDs
+      const suggestions: AISuggestionDTO[] = Array.isArray(parsedContent)
+        ? parsedContent.map((item: any) => ({
+            id: randomUUID(),
+            question: item.question,
+            answer: item.answer,
+          }))
+        : [];
+
+      // Store suggestions in cache with TTL
+      suggestions.forEach(setSuggestion);
+      return suggestions;
+    } catch (error) {
+      console.error("Failed to parse AI response:", error);
+      return [];
+    }
   }
 
   /**
@@ -47,7 +75,7 @@ export class FlashcardsSuggestionService {
    */
   static async accept(
     suggestionId: string,
-    command: AcceptSuggestionCommand,
+    command: AcceptSuggestionCommand
   ): Promise<FlashcardDTO> {
     const suggestion = getSuggestion(suggestionId);
     if (!suggestion) {
@@ -98,7 +126,7 @@ export class FlashcardsSuggestionService {
    */
   static async edit(
     suggestionId: string,
-    command: EditSuggestionCommand,
+    command: EditSuggestionCommand
   ): Promise<AISuggestionDTO> {
     const suggestion = getSuggestion(suggestionId);
     if (!suggestion) {
@@ -112,4 +140,4 @@ export class FlashcardsSuggestionService {
     setSuggestion(updated);
     return updated;
   }
-} 
+}
