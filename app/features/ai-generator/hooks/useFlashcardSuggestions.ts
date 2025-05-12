@@ -55,17 +55,20 @@ const acceptSuggestion = async (
     `/api/flashcards-suggestions/${suggestionId}/accept`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ flashcardsSetId }),
     }
   );
-
   if (!response.ok) {
-    throw new Error("Nie udało się zaakceptować sugestii");
+    // parse error details from server
+    let errMsg = 'Nie udało się zaakceptować sugestii';
+    try {
+      const errorBody = await response.json();
+      if (errorBody.error) errMsg = errorBody.error;
+      else if (errorBody.details) errMsg = JSON.stringify(errorBody.details);
+    } catch {}
+    throw new Error(errMsg);
   }
-
   return response.json();
 };
 

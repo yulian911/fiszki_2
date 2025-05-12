@@ -8,19 +8,21 @@ export interface FlashcardsSetOption {
   label: string; // nazwa zestawu
 }
 
-// Funkcja API do pobierania zestawów fiszek
+// Funkcja API do pobierania zestawów fiszek (wyciąga pole `data` z paginowanej odpowiedzi)
 const fetchFlashcardsSets = async (): Promise<FlashcardsSetDTO[]> => {
   const response = await fetch("/api/flashcards-sets", {
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
   });
 
   if (!response.ok) {
     throw new Error("Nie udało się pobrać zestawów fiszek");
   }
-
-  return response.json();
+  // odpowiedź ma kształt { data: FlashcardsSetDTO[], meta: { ... } }
+  const json = await response.json();
+  if (!json.data || !Array.isArray(json.data)) {
+    throw new Error("Niepoprawny format odpowiedzi API");
+  }
+  return json.data;
 };
 
 // Funkcja API do tworzenia nowego zestawu fiszek

@@ -6,7 +6,7 @@ import {
   PaginatedResponse,
   FlashcardsSetStatus,
 } from "../types";
-import { SupabaseClient } from "../utils/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Typy pomocnicze dla danych z bazy danych
 interface FlashcardsSetRecord {
@@ -79,9 +79,16 @@ export class FlashcardsSetService {
       query = query.eq("status", status);
     }
 
-    // Sortowanie i paginacja
+    // Sortowanie i paginacja: mapujemy sortBy na nazwy kolumn w DB
+    const sortColumnMap: Record<string, string> = {
+      name: 'name',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
+    };
+    const column = sortColumnMap[sortBy] ?? 'created_at';
+    const ascending = sortBy === 'name';
     const { data, error, count } = await query
-      .order(sortBy, { ascending: sortBy === "name" })
+      .order(column, { ascending })
       .range(offset, offset + limit - 1);
 
     if (error) {
@@ -91,8 +98,8 @@ export class FlashcardsSetService {
     }
 
     // Mapowanie danych z DB na DTO
-    const flashcardsSets: FlashcardsSetDTO[] = (data || []).map((item) =>
-      mapFlashcardsSetToDTO(item)
+    const flashcardsSets: FlashcardsSetDTO[] = (data || []).map(
+      mapFlashcardsSetToDTO
     );
 
     return {

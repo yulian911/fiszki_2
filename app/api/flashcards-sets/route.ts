@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "../../../utils/supabase/client";
+import { createClient } from "../../../utils/supabase/server";
 import { z } from "zod";
 
 import { FlashcardsSetService } from "../../../services/FlashcardsSetService";
@@ -15,7 +15,7 @@ import {
 export async function GET(request: NextRequest) {
   try {
     // Inicjalizacja klienta Supabase
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Próba pobrania użytkownika z sesji cookie
     let {
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
       page: url.searchParams.get("page") || "1",
       limit: url.searchParams.get("limit") || "20",
       sortBy: url.searchParams.get("sortBy") || "createdAt",
-      status: url.searchParams.get("status"),
+      status: url.searchParams.get("status") ?? undefined,
     };
 
     // Walidacja parametrów zapytania
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Inicjalizacja klienta Supabase
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Próba pobrania użytkownika z sesji cookie
     let {
