@@ -2,7 +2,7 @@
 
 ## 1. Przegląd
 
-Modal do generowania fiszek z wykorzystaniem AI. Użytkownik może wkleić tekst (do 1000 znaków), który zostanie przeanalizowany przez sztuczną inteligencję. AI generuje propozycje fiszek w formacie pytanie-odpowiedź, które użytkownik może zaakceptować, edytować lub odrzucić.
+Modal do generowania fiszek z wykorzystaniem AI. Użytkownik może wkleić tekst (do 5000 znaków), który zostanie przeanalizowany przez sztuczną inteligencję. AI generuje propozycje fiszek w formacie pytanie-odpowiedź, które użytkownik może zaakceptować, edytować lub odrzucić.
 
 ## 2. Routing widoku
 
@@ -15,9 +15,12 @@ Widok będzie dostępny jako modal, który może być wywoływany z różnych mi
 ## 3. Struktura komponentów
 
 ```
-AIFlashcardGeneratorDialog
+AIFlashcardGeneratorDialog (Wizard: wybór/utworzenie zestawu → wprowadzenie tekstu → przegląd sugestii)
+├── SetSelectionForm
+│   ├── Select (lista istniejących zestawów + opcja "Utwórz nowy")
+│   └── Button "Dalej"
 ├── TextGenerationForm
-│   ├── Textarea (limit 1000 znaków)
+│   ├── Textarea (limit 5000 znaków)
 │   └── Button "Generuj"
 ├── LoadingSpinner (gdy status="generating")
 └── SuggestionsList
@@ -29,7 +32,6 @@ AIFlashcardGeneratorDialog
             ├── Button "Edytuj"
             └── Button "Odrzuć"
     └── EditSuggestionForm (pojawia się po kliknięciu "Edytuj")
-    └── SelectFlashcardsSetForm (pojawia się po kliknięciu "Zaakceptuj")
 ```
 
 ## 4. Szczegóły komponentów
@@ -53,7 +55,7 @@ AIFlashcardGeneratorDialog
 - Obsługiwane interakcje: Wprowadzanie tekstu, submisja formularza
 - Obsługiwana walidacja:
   - Tekst nie może być pusty
-  - Tekst nie może przekraczać 1000 znaków
+  - Tekst nie może przekraczać 5000 znaków
   - Walidacja za pomocą Zod
 - Typy: `GenerateSuggestionsCommand`
 - Propsy:
@@ -125,23 +127,6 @@ AIFlashcardGeneratorDialog
   - `onCancel: () => void` - handler anulowania edycji
   - `isLoading?: boolean` - czy trwa przetwarzanie
 
-### SelectFlashcardsSetForm
-
-- Opis komponentu: Formularz wyboru zestawu fiszek przy akceptacji sugestii
-- Główne elementy: Form, Select z opcjami zestawów, przyciski "Akceptuj" i "Anuluj"
-- Obsługiwane interakcje: Wybór zestawu, submisja formularza, anulowanie
-- Obsługiwana walidacja:
-  - Wybrany zestaw jest wymagany
-  - Walidacja za pomocą Zod
-- Typy: `FlashcardsSetDTO[]`, `AcceptSuggestionCommand`, `FlashcardsSetOption`
-- Propsy:
-  - `suggestionId: string` - ID akceptowanej sugestii
-  - `sets: FlashcardsSetOption[]` - dostępne zestawy fiszek
-  - `defaultSetId?: string` - opcjonalne domyślne ID zestawu
-  - `onSubmit: (id: string, setId: string) => Promise<void>` - handler submisji
-  - `onCancel: () => void` - handler anulowania
-  - `isLoading?: boolean` - czy trwa przetwarzanie
-
 ## 5. Typy
 
 ### GenerationState
@@ -172,9 +157,8 @@ interface EditState {
 
 ```typescript
 interface AcceptState {
-  isSelecting: boolean;
+  isProcessing: boolean;
   currentSuggestionId: string | null;
-  selectedSetId: string | null;
 }
 ```
 
@@ -194,7 +178,7 @@ const generateSuggestionsFormSchema = z.object({
   text: z
     .string()
     .min(1, "Tekst jest wymagany")
-    .max(1000, "Tekst nie może przekraczać 1000 znaków"),
+    .max(5000, "Tekst nie może przekraczać 5000 znaków"),
 });
 
 type GenerateSuggestionsFormValues = z.infer<
@@ -243,9 +227,8 @@ function useFlashcardSuggestions() {
   });
 
   const [acceptState, setAcceptState] = useState<AcceptState>({
-    isSelecting: false,
+    isProcessing: false,
     currentSuggestionId: null,
-    selectedSetId: null,
   });
 
   const handleSubmitText = async (text: string) => {
@@ -422,35 +405,22 @@ const fetchFlashcardsSets = async (): Promise<FlashcardsSetDTO[]> => {
 
 ## 8. Interakcje użytkownika
 
-1. **Wklejanie tekstu i generowanie sugestii**
+1. **Wybór lub utworzenie zestawu fiszek**  
+   - Użytkownik klika przycisk "Generuj AI"  
+   - Modal otwiera się na kroku 1: `SetSelectionForm`  
+   - Użytkownik wybiera istniejący zestaw lub tworzy nowy  
+   - Po kliknięciu "Dalej" przechodzimy do kroku 2
 
-   - Użytkownik wkleja tekst źródłowy w pole tekstowe
-   - System weryfikuje, czy tekst nie przekracza 1000 znaków (licznik)
-   - Po kliknięciu "Generuj", system wysyła tekst do API
-   - Podczas generowania wyświetlany jest LoadingSpinner
-   - Po wygenerowaniu, sugestie pojawiają się na liście
+2. **Wprowadzenie tekstu i generowanie sugestii**  
+   - Użytkownik wkleja tekst źródłowy w `TextGenerationForm`  
+   - System waliduje długość tekstu (max 5000 znaków)  
+   - Kliknięcie "Generuj" odpala żądanie do API  
+   - Wyświetlany `LoadingSpinner` do zakończenia
 
-2. **Akceptacja sugestii**
-
-   - Użytkownik klika "Zaakceptuj" przy wybranej sugestii
-   - System wyświetla SelectFlashcardsSetForm
-   - Użytkownik wybiera zestaw fiszek z listy
-   - Po kliknięciu "Akceptuj", system wysyła żądanie do API
-   - Zaakceptowana sugestia znika z listy
-   - System wyświetla powiadomienie o sukcesie
-
-3. **Edycja sugestii**
-
-   - Użytkownik klika "Edytuj" przy wybranej sugestii
-   - System wyświetla EditSuggestionForm z pytaniem i odpowiedzią
-   - Użytkownik modyfikuje treść
-   - Po kliknięciu "Zapisz", system waliduje dane i wysyła do API
-   - Edytowana sugestia jest aktualizowana na liście
-
-4. **Odrzucanie sugestii**
-   - Użytkownik klika "Odrzuć" przy wybranej sugestii
-   - System wysyła żądanie do API
-   - Odrzucona sugestia znika z listy
+3. **Przegląd i akceptacja sugestii**  
+   - Po zakończeniu generowania pokazuje się `SuggestionsList`  
+   - Użytkownik akceptuje/edytuje/odrzuca każdą sugestię  
+   - Akceptowane fiszki trafiają do wcześniej wybranego zestawu
 
 ## 9. Warunki i walidacja
 
@@ -459,7 +429,7 @@ const fetchFlashcardsSets = async (): Promise<FlashcardsSetDTO[]> => {
 - **Komponent**: TextGenerationForm
 - **Warunki**:
   - Tekst nie może być pusty
-  - Tekst nie może przekraczać 1000 znaków
+  - Tekst nie może przekraczać 5000 znaków
 - **Wpływ na interfejs**:
   - Pole tekstowe pokazuje licznik pozostałych znaków
   - Przycisk "Generuj" jest wyłączony, gdy tekst jest pusty
@@ -512,7 +482,6 @@ const fetchFlashcardsSets = async (): Promise<FlashcardsSetDTO[]> => {
 - **Obsługa**:
   - Toast z komunikatem błędu
   - Ponowne ładowanie listy sugestii
-  - Zamknięcie formularza wyboru zestawu
 
 ### Błąd podczas odrzucania sugestii
 
@@ -558,7 +527,6 @@ const fetchFlashcardsSets = async (): Promise<FlashcardsSetDTO[]> => {
    - Zaimplementuj SuggestionsList
    - Zaimplementuj SuggestionCard i podkomponenty
    - Zaimplementuj EditSuggestionForm z walidacją Zod
-   - Zaimplementuj SelectFlashcardsSetForm z walidacją Zod
 
 4. **Integracja z API**
 

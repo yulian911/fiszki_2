@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useFlashcardSuggestions } from "../hooks/useFlashcardSuggestions";
 import {
   Dialog,
@@ -7,7 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TextGenerationForm } from "./TextGenerationForm";
@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/drawer";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { SuggestionsList } from "./SuggestionsList";
+import { SetSelectionForm } from "./SetSelectionForm";
+import { ChevronLeft, Info } from "lucide-react";
 
 interface AIFlashcardGeneratorDialogProps {
   isOpen: boolean;
@@ -55,35 +57,124 @@ export function AIFlashcardGeneratorDialog({
   // Wykrywanie czy jest to urządzenie mobilne
   const isMobile = useMediaQuery("(max-width: 640px)");
 
-  const { status, suggestions, error } = generationState;
+  const { status, suggestions, error, text } = generationState;
+  // Wizard step: 1 = select set, 2 = enter text/generate, 3 = review suggestions
+  const [step, setStep] = useState<number>(defaultSetId ? 2 : 1);
+  const [selectedSet, setSelectedSet] = useState<string | undefined>(defaultSetId);
+  
+  // Informacja o wybranym zestawie
+  const [selectedSetName, setSelectedSetName] = useState<string | undefined>(undefined);
 
-  const content = (
-    <>
-      {status !== "completed" && (
-        <TextGenerationForm
-          onSubmit={handleSubmitText}
-          isLoading={status === "generating"}
+  const handleRestartGeneration = () => {
+    // Reset state and go back to text input
+    handleSubmitText("");
+    setStep(2);
+  };
+
+  const handleGenerateNewSuggestions = () => {
+    // Keep the same text but reset suggestions
+    handleSubmitText(text);
+  };
+
+  const renderStepIndicator = () => {
+    return (
+      <div className="flex items-center justify-center mb-4 text-sm text-muted-foreground">
+        <div className={`px-3 py-1 rounded-full ${step === 1 ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>1</div>
+        <div className="h-px w-6 bg-muted"></div>
+        <div className={`px-3 py-1 rounded-full ${step === 2 ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>2</div>
+        <div className="h-px w-6 bg-muted"></div>
+        <div className={`px-3 py-1 rounded-full ${step === 3 ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>3</div>
+      </div>
+    );
+  };
+
+  const renderContent = () => {
+    if (step === 1) {
+      return (
+        <SetSelectionForm
+          defaultSetId={defaultSetId}
+          onNext={(setId: string, setName?: string) => {
+            setSelectedSet(setId);
+            setSelectedSetName(setName);
+            setStep(2);
+          }}
         />
-      )}
+      );
+    }
 
-      {status === "generating" && (
-        <LoadingSpinner message="Generowanie sugestii fiszek..." />
-      )}
-
-      {status === "error" && (
-        <div className="p-4 text-center">
-          <p className="text-destructive mb-4">Wystąpił błąd: {error}</p>
-          <Button
-            variant="outline"
-            onClick={() => handleSubmitText(generationState.text)}
-          >
-            Spróbuj ponownie
-          </Button>
-        </div>
-      )}
-
-      {status === "completed" && (
+    if (step === 2 || status === "idle" || status === "error") {
+      return (
         <>
+          {selectedSet && selectedSetName && (
+            <div className="mb-4 p-2 bg-muted/30 rounded-md flex items-center gap-2">
+              <Info className="h-4 w-4" />
+              <span className="text-sm text-muted-foreground">
+                Wybrano zestaw: <span className="font-medium">{selectedSetName}</span>
+              </span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="ml-auto text-xs h-7"
+                onClick={() => setStep(1)}
+              >
+                Zmień
+              </Button>
+            </div>
+          )}
+          
+          <TextGenerationForm
+            onSubmit={async (text) => {
+              await handleSubmitText(text);
+              if (status !== "error") {
+                setStep(3);
+              }
+            }}
+            isLoading={status === "generating"}
+          />
+
+          {status === "error" && (
+            <div className="p-4 text-center">
+              <p className="text-destructive mb-4">Wystąpił błąd: {error}</p>
+              <Button
+                variant="outline"
+                onClick={() => handleSubmitText(text)}
+              >
+                Spróbuj ponownie
+              </Button>
+            </div>
+          )}
+          
+          <div className="mt-4 flex justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setStep(1)}
+              className="gap-1"
+              size="sm"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Wróć do wyboru zestawu
+            </Button>
+          </div>
+        </>
+      );
+    }
+
+    if (status === "generating") {
+      return <LoadingSpinner message="Generowanie sugestii fiszek..." />;
+    }
+
+    if (status === "completed" && step === 3) {
+      return (
+        <>
+          {selectedSet && selectedSetName && (
+            <div className="mb-4 p-2 bg-muted/30 rounded-md flex items-center gap-2">
+              <Info className="h-4 w-4" />
+              <span className="text-sm">
+                Wybrano zestaw: <span className="font-medium">{selectedSetName}</span>
+              </span>
+            </div>
+          )}
+          
           {suggestions.length > 0 ? (
             <SuggestionsList
               suggestions={suggestions}
@@ -96,7 +187,7 @@ export function AIFlashcardGeneratorDialog({
               onAcceptCancel={handleCancelAccept}
               editState={editState}
               acceptState={acceptState}
-              defaultSetId={defaultSetId}
+              defaultSetId={selectedSet}
               isMobile={isMobile}
             />
           ) : (
@@ -104,27 +195,32 @@ export function AIFlashcardGeneratorDialog({
               <p className="mb-4">
                 Nie udało się wygenerować żadnych sugestii dla podanego tekstu.
               </p>
-              <Button onClick={() => handleSubmitText(generationState.text)}>
+              <Button onClick={handleGenerateNewSuggestions}>
                 Spróbuj ponownie
               </Button>
             </div>
           )}
 
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex justify-between">
             <Button
               variant="outline"
-              onClick={() => {
-                // Reset stanu do formularza początkowego
-                handleSubmitText("");
-              }}
+              onClick={() => setStep(2)}
+            >
+              Wróć do edycji tekstu
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleRestartGeneration}
             >
               Generuj nowe sugestie
             </Button>
           </div>
         </>
-      )}
-    </>
-  );
+      );
+    }
+
+    return null;
+  };
 
   // Responsywny komponent, który dostosowuje się do szerokości ekranu
   return (
@@ -135,12 +231,14 @@ export function AIFlashcardGeneratorDialog({
             <DrawerHeader className="text-left">
               <DrawerTitle>Generator Fiszek AI</DrawerTitle>
               <DrawerDescription>
-                Wklej tekst (maksymalnie 1000 znaków), a AI wygeneruje z niego
-                propozycje fiszek.
+                {step === 1 && "Wybierz zestaw fiszek, do którego zostaną dodane wygenerowane fiszki."}
+                {step === 2 && "Wklej tekst (maksymalnie 5000 znaków), a AI wygeneruje z niego propozycje fiszek."}
+                {step === 3 && "Przejrzyj wygenerowane propozycje fiszek i wybierz te, które chcesz dodać do zestawu."}
               </DrawerDescription>
+              {renderStepIndicator()}
             </DrawerHeader>
             <div className="px-4 pb-0 overflow-y-auto max-h-[calc(100dvh-10rem)]">
-              {content}
+              {renderContent()}
             </div>
             <DrawerFooter className="pt-2">
               <DrawerClose asChild>
@@ -155,11 +253,13 @@ export function AIFlashcardGeneratorDialog({
             <DialogHeader>
               <DialogTitle>Generator Fiszek AI</DialogTitle>
               <DialogDescription>
-                Wklej tekst (maksymalnie 1000 znaków), a AI wygeneruje z niego
-                propozycje fiszek.
+                {step === 1 && "Wybierz zestaw fiszek, do którego zostaną dodane wygenerowane fiszki."}
+                {step === 2 && "Wklej tekst (maksymalnie 5000 znaków), a AI wygeneruje z niego propozycje fiszek."}
+                {step === 3 && "Przejrzyj wygenerowane propozycje fiszek i wybierz te, które chcesz dodać do zestawu."}
               </DialogDescription>
+              {renderStepIndicator()}
             </DialogHeader>
-            {content}
+            {renderContent()}
           </DialogContent>
         </Dialog>
       )}

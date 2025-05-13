@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -13,7 +13,7 @@ import {
   FormItem,
   FormMessage,
 } from "@/components/ui/form";
-import { FileText, Upload } from "lucide-react";
+import { FileText, Upload, AlertCircle } from "lucide-react";
 import { notify } from "../utils/notifications";
 
 // Schema walidacji formularza
@@ -21,7 +21,7 @@ const generateSuggestionsFormSchema = z.object({
   text: z
     .string()
     .min(1, "Tekst jest wymagany")
-    .max(1000, "Tekst nie może przekraczać 1000 znaków"),
+    .max(5000, "Tekst nie może przekraczać 5000 znaków"),
 });
 
 type GenerateSuggestionsFormValues = z.infer<
@@ -40,21 +40,45 @@ export function TextGenerationForm({
   const [charCount, setCharCount] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const form = useForm<GenerateSuggestionsFormValues>({
     resolver: zodResolver(generateSuggestionsFormSchema),
     defaultValues: {
       text: "",
     },
+    mode: "onChange" // Walidacja przy każdej zmianie
   });
+
+  // Użyj efektu, aby ustawić focus na textarea po załadowaniu
+  useEffect(() => {
+    if (textareaRef.current && !isLoading) {
+      textareaRef.current.focus();
+    }
+  }, [isLoading]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
     setCharCount(text.length);
+    // Wyczyść błąd ogólny formularza, gdy użytkownik wprowadza zmiany
+    if (formError) setFormError(null);
   };
 
   const handleSubmit = async (data: GenerateSuggestionsFormValues) => {
-    await onSubmit(data.text);
+    try {
+      setFormError(null);
+      await onSubmit(data.text);
+    } catch (error) {
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : "Wystąpił błąd podczas przetwarzania tekstu";
+      
+      setFormError(errorMessage);
+      form.setError("text", {
+        type: "manual",
+        message: errorMessage,
+      });
+    }
   };
 
   // Obsługa Drag and Drop
@@ -82,6 +106,14 @@ export function TextGenerationForm({
         // Ustaw wartość pola
         form.setValue("text", text);
         setCharCount(text.length);
+        form.trigger("text"); // Uruchom walidację
+        
+        // Sprawdź długość tekstu
+        if (text.length > 5000) {
+          form.setValue("text", text.substring(0, 5000));
+          setCharCount(5000);
+          notify.warning("Tekst został przycięty do 5000 znaków");
+        }
       });
       return;
     }
@@ -98,14 +130,15 @@ export function TextGenerationForm({
             textContent = await readTextFile(file);
 
             // Jeśli tekst jest zbyt długi, obetnij go
-            if (textContent.length > 1000) {
-              textContent = textContent.substring(0, 1000);
-              notify.warning("Tekst został przycięty do 1000 znaków");
+            if (textContent.length > 5000) {
+              textContent = textContent.substring(0, 5000);
+              notify.warning("Tekst został przycięty do 5000 znaków");
             }
 
             // Ustaw wartość pola
             form.setValue("text", textContent);
             setCharCount(textContent.length);
+            form.trigger("text"); // Uruchom walidację
             break;
           } catch (error) {
             notify.error("Nie udało się odczytać pliku");
@@ -133,18 +166,30 @@ export function TextGenerationForm({
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const pastedText = e.clipboardData.getData("text");
 
-    if (pastedText.length > 1000) {
+    if (pastedText.length > 5000) {
       e.preventDefault();
-      const truncatedText = pastedText.substring(0, 1000);
+      const truncatedText = pastedText.substring(0, 5000);
       form.setValue("text", truncatedText);
-      setCharCount(1000);
-      notify.warning("Wklejony tekst został przycięty do 1000 znaków");
+      setCharCount(5000);
+      form.trigger("text"); // Uruchom walidację
+      notify.warning("Wklejony tekst został przycięty do 5000 znaków");
     }
   };
+
+  const isTextTooLong = charCount > 5000;
+  const isTextEmpty = charCount === 0;
+  const isSubmitDisabled = isLoading || isTextEmpty || isTextTooLong || !!formError;
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+        {formError && (
+          <div className="p-3 border border-destructive/50 rounded bg-destructive/10 flex items-center gap-2 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <p>{formError}</p>
+          </div>
+        )}
+        
         <FormField
           control={form.control}
           name="text"
@@ -152,7 +197,13 @@ export function TextGenerationForm({
             <FormItem>
               <FormControl>
                 <div
-                  className={`relative rounded-md border ${isDragging ? "border-primary border-dashed bg-primary/5" : ""}`}
+                  className={`relative rounded-md border ${
+                    isDragging 
+                      ? "border-primary border-dashed bg-primary/5" 
+                      : isTextTooLong 
+                        ? "border-destructive" 
+                        : ""
+                  }`}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
@@ -173,8 +224,12 @@ export function TextGenerationForm({
                     }}
                     ref={textareaRef}
                   />
-                  <div className="absolute bottom-2 right-2 text-sm text-muted-foreground">
-                    {charCount}/1000
+                  <div className={`absolute bottom-2 right-2 text-sm ${
+                    isTextTooLong 
+                      ? "text-destructive font-medium" 
+                      : "text-muted-foreground"
+                  }`}>
+                    {charCount}/5000
                   </div>
 
                   {isDragging && (
@@ -201,7 +256,7 @@ export function TextGenerationForm({
           </div>
           <Button
             type="submit"
-            disabled={isLoading || charCount === 0 || charCount > 1000}
+            disabled={isSubmitDisabled}
           >
             {isLoading ? "Generowanie..." : "Generuj fiszki"}
           </Button>

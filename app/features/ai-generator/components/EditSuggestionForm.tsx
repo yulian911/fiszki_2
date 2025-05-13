@@ -22,6 +22,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { notify } from "../utils/notifications";
+import React from "react";
 
 // Schema walidacji formularza edycji
 const editSuggestionFormSchema = z.object({
@@ -39,6 +41,8 @@ interface EditSuggestionFormProps {
     question: string;
     answer: string;
   };
+  isSubmitting?: boolean;
+  error?: string;
 }
 
 export function EditSuggestionForm({
@@ -46,6 +50,8 @@ export function EditSuggestionForm({
   onSubmit,
   onCancel,
   defaultValues,
+  isSubmitting = false,
+  error,
 }: EditSuggestionFormProps) {
   const form = useForm<EditSuggestionFormValues>({
     resolver: zodResolver(editSuggestionFormSchema),
@@ -55,14 +61,39 @@ export function EditSuggestionForm({
     },
   });
 
-  const isSubmitting = form.formState.isSubmitting;
+  // Use external isSubmitting prop if provided, otherwise use form state
+  const isFormSubmitting = isSubmitting || form.formState.isSubmitting;
+  const hasErrors = Object.keys(form.formState.errors).length > 0;
+
+  // Update form errors when error prop changes
+  React.useEffect(() => {
+    if (error) {
+      form.setError("root", {
+        type: "manual",
+        message: error,
+      });
+    } else {
+      form.clearErrors("root");
+    }
+  }, [error, form]);
 
   const handleSubmit = async (data: EditSuggestionFormValues) => {
     try {
       await onSubmit(data);
     } catch (error) {
-      // Obsługa błędu - można dodać wyświetlanie komunikatu
-      console.error("Błąd podczas zapisywania edycji:", error);
+      // Error is now handled by parent component via the error prop
+      // This is just for errors that occur before the API call
+      if (error instanceof Error) {
+        form.setError("root", {
+          type: "manual",
+          message: error.message,
+        });
+      } else {
+        form.setError("root", {
+          type: "manual",
+          message: "Wystąpił problem podczas zapisywania zmian.",
+        });
+      }
     }
   };
 
@@ -77,6 +108,12 @@ export function EditSuggestionForm({
             onSubmit={form.handleSubmit(handleSubmit)}
             className="space-y-4"
           >
+            {form.formState.errors.root && (
+              <div className="text-sm text-destructive p-2 bg-destructive/10 rounded-md">
+                {form.formState.errors.root.message}
+              </div>
+            )}
+            
             <FormField
               control={form.control}
               name="question"
@@ -84,7 +121,11 @@ export function EditSuggestionForm({
                 <FormItem>
                   <FormLabel>Pytanie</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input 
+                      {...field} 
+                      placeholder="Wpisz pytanie..."
+                      className={form.formState.errors.question ? "border-destructive" : ""}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -98,7 +139,11 @@ export function EditSuggestionForm({
                 <FormItem>
                   <FormLabel>Odpowiedź</FormLabel>
                   <FormControl>
-                    <Textarea {...field} className="min-h-[100px]" />
+                    <Textarea 
+                      {...field} 
+                      placeholder="Wpisz odpowiedź..."
+                      className={`min-h-[100px] ${form.formState.errors.answer ? "border-destructive" : ""}`} 
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -110,12 +155,21 @@ export function EditSuggestionForm({
                 type="button"
                 variant="outline"
                 onClick={onCancel}
-                disabled={isSubmitting}
+                disabled={isFormSubmitting}
               >
                 Anuluj
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Zapisywanie..." : "Zapisz zmiany"}
+              <Button 
+                type="submit" 
+                disabled={isFormSubmitting || hasErrors}
+                className="min-w-[120px]"
+              >
+                {isFormSubmitting ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    Zapisywanie...
+                  </>
+                ) : "Zapisz zmiany"}
               </Button>
             </div>
           </form>
