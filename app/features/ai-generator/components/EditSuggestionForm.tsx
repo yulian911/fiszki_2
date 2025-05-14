@@ -78,6 +78,7 @@ export function EditSuggestionForm({
   }, [error, form]);
 
   const handleSubmit = async (data: EditSuggestionFormValues) => {
+    console.log('Form data before submission:', data);
     try {
       await onSubmit(data);
     } catch (error) {
