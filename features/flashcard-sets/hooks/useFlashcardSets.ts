@@ -1,66 +1,94 @@
-import { create, StoreApi, UseBoundStore } from 'zustand';
-import { immer } from 'zustand/middleware/immer';
+import { create, StoreApi, UseBoundStore } from "zustand";
+import { immer } from "zustand/middleware/immer";
 import type {
   PaginatedResponse,
   FlashcardsSetDTO,
   CreateFlashcardsSetCommand,
   UpdateFlashcardsSetCommand,
-  MetaDTO
-} from '@/types'; // Zakładamy, że @/types jest poprawnie skonfigurowanym aliasem
-import type { FlashcardsSetFiltersViewModel } from '../types'; // Ta ścieżka jest teraz poprawna, bo jesteśmy w features/flashcard-sets/hooks/
+  MetaDTO,
+} from "@/types"; // Zakładamy, że @/types jest poprawnie skonfigurowanym aliasem
+import type { FlashcardsSetFiltersViewModel } from "../types"; // Ta ścieżka jest teraz poprawna, bo jesteśmy w features/flashcard-sets/hooks/
 
 // Założenie: Istnieje globalny klient API, np. apiClient
 // import apiClient from '@/lib/apiClient';
 
-// Przykładowa implementacja apiClient dla celów demonstracyjnych
+// Implementacja klienta API korzystającego z Next.js API
 const apiClient = {
   get: async (url: string, params?: Record<string, any>): Promise<any> => {
-    console.log(`API GET: ${url}`, params);
-    if (url === '/flashcards-sets') {
-      const page = params?.page || 1;
-      const limit = params?.limit || 10;
-      const total = 50;
-      const data: FlashcardsSetDTO[] = Array.from({ length: Math.min(limit, total - (page - 1) * limit) > 0 ? Math.min(limit, total - (page - 1) * limit) : 0 }).map((_, i) => ({
-        id: `set-${page}-${i}`,
-        ownerId: 'user-123',
-        name: `Zestaw ${page}-${i} (Status: ${params?.status || 'pending'}, Sort: ${params?.sortBy || 'createdAt'} ${params?.sortOrder || 'desc'})`,
-        status: (params?.status as FlashcardsSetDTO['status']) || 'pending',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
-      return { data, meta: { page, limit, total } as MetaDTO };
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          queryParams.append(key, String(value));
+        }
+      });
     }
-    return Promise.reject(new Error('Not implemented'));
-  },
-  post: async (url: string, data: CreateFlashcardsSetCommand): Promise<FlashcardsSetDTO> => {
-    console.log(`API POST: ${url}`, data);
-    if (url === '/flashcards-sets') {
-      return {
-        id: `new-set-${Date.now()}`,
-        ownerId: 'user-123',
-        name: data.name,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      } as FlashcardsSetDTO;
+    const response = await fetch(`/api${url}?${queryParams.toString()}`);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(
+        error.details ||
+          error.error ||
+          "Wystąpił błąd podczas pobierania danych"
+      );
     }
-    return Promise.reject(new Error('Not implemented'));
+    return response.json();
   },
-  put: async (url: string, data: UpdateFlashcardsSetCommand): Promise<FlashcardsSetDTO> => {
-    console.log(`API PUT: ${url}`, data);
-    const setId = url.split('/').pop();
-    return {
-      id: setId!,
-      ownerId: 'user-123',
-      name: data.name || `Zaktualizowany Zestaw ${setId}`,
-      status: data.status || 'pending',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    } as FlashcardsSetDTO;
+
+  post: async (
+    url: string,
+    data: CreateFlashcardsSetCommand
+  ): Promise<FlashcardsSetDTO> => {
+    const response = await fetch(`/api${url}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(
+        error.details ||
+          error.error ||
+          "Wystąpił błąd podczas tworzenia zestawu"
+      );
+    }
+    return response.json();
   },
+
+  put: async (
+    url: string,
+    data: UpdateFlashcardsSetCommand
+  ): Promise<FlashcardsSetDTO> => {
+    const response = await fetch(`/api${url}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(
+        error.details ||
+          error.error ||
+          "Wystąpił błąd podczas aktualizacji zestawu"
+      );
+    }
+    return response.json();
+  },
+
   delete: async (url: string): Promise<void> => {
-    console.log(`API DELETE: ${url}`);
-    return Promise.resolve();
+    const response = await fetch(`/api${url}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(
+        error.details || error.error || "Wystąpił błąd podczas usuwania zestawu"
+      );
+    }
   },
 };
 
@@ -72,8 +100,13 @@ interface FlashcardSetsState {
   filters: FlashcardsSetFiltersViewModel;
   initialFiltersState: Readonly<FlashcardsSetFiltersViewModel>;
   fetchSets: (params?: FlashcardsSetFiltersViewModel) => Promise<void>;
-  createSet: (command: CreateFlashcardsSetCommand) => Promise<FlashcardsSetDTO | null>;
-  updateSet: (setId: string, command: UpdateFlashcardsSetCommand) => Promise<FlashcardsSetDTO | null>;
+  createSet: (
+    command: CreateFlashcardsSetCommand
+  ) => Promise<FlashcardsSetDTO | null>;
+  updateSet: (
+    setId: string,
+    command: UpdateFlashcardsSetCommand
+  ) => Promise<FlashcardsSetDTO | null>;
   deleteSet: (setId: string) => Promise<boolean>;
   setFilters: (newFilters: Partial<FlashcardsSetFiltersViewModel>) => void;
   resetFilters: () => void;
@@ -82,16 +115,20 @@ interface FlashcardSetsState {
 export const initialFilters: FlashcardsSetFiltersViewModel = {
   page: 1,
   limit: 10,
-  sortBy: 'createdAt',
-  sortOrder: 'desc',
-  status: ''
+  sortBy: "createdAt",
+  sortOrder: "desc",
+  status: "",
 };
 
 // Typy dla set i get w Zustand z immer
-type ImmerSetState = (fn: (state: FlashcardSetsState) => void | FlashcardSetsState) => void;
+type ImmerSetState = (
+  fn: (state: FlashcardSetsState) => void | FlashcardSetsState
+) => void;
 type GetState = () => FlashcardSetsState;
 
-export const useFlashcardSetsStore: UseBoundStore<StoreApi<FlashcardSetsState>> = create<FlashcardSetsState>()(
+export const useFlashcardSetsStore: UseBoundStore<
+  StoreApi<FlashcardSetsState>
+> = create<FlashcardSetsState>()(
   immer((set: ImmerSetState, get: GetState) => ({
     setsData: null,
     isLoading: false,
@@ -107,7 +144,7 @@ export const useFlashcardSetsStore: UseBoundStore<StoreApi<FlashcardSetsState>> 
         state.error = null;
       });
       try {
-        const response = await apiClient.get('/flashcards-sets', {
+        const response = await apiClient.get("/flashcards-sets", {
           page: currentFilters.page,
           limit: currentFilters.limit,
           sortBy: currentFilters.sortBy,
@@ -135,7 +172,7 @@ export const useFlashcardSetsStore: UseBoundStore<StoreApi<FlashcardSetsState>> 
         state.error = null;
       });
       try {
-        const newSet = await apiClient.post('/flashcards-sets', command);
+        const newSet = await apiClient.post("/flashcards-sets", command);
         await get().fetchSets();
         set((state) => {
           state.isMutating = false;
@@ -157,12 +194,18 @@ export const useFlashcardSetsStore: UseBoundStore<StoreApi<FlashcardSetsState>> 
         state.error = null;
       });
       try {
-        const updatedSet = await apiClient.put(`/flashcards-sets/${setId}`, command);
+        const updatedSet = await apiClient.put(
+          `/flashcards-sets/${setId}`,
+          command
+        );
         set((state) => {
           if (state.setsData) {
-            const index = state.setsData.data.findIndex(s => s.id === setId);
+            const index = state.setsData.data.findIndex((s) => s.id === setId);
             if (index !== -1) {
-              state.setsData.data[index] = { ...state.setsData.data[index], ...updatedSet };
+              state.setsData.data[index] = {
+                ...state.setsData.data[index],
+                ...updatedSet,
+              };
             }
           }
           state.isMutating = false;
@@ -190,31 +233,39 @@ export const useFlashcardSetsStore: UseBoundStore<StoreApi<FlashcardSetsState>> 
         const currentSetsData = get().setsData;
         const currentFilters = get().filters;
         if (currentSetsData) {
-            const newData = currentSetsData.data.filter(s => s.id !== setId);
-            const newTotal = Math.max(0, (currentSetsData.meta?.total || 0) - 1);
-            
-            set((state) => {
-                if (state.setsData) {
-                    state.setsData.data = newData;
-                    if (state.setsData.meta) {
-                        state.setsData.meta.total = newTotal;
-                    }
-                }
-            });
+          const newData = currentSetsData.data.filter((s) => s.id !== setId);
+          const newTotal = Math.max(0, (currentSetsData.meta?.total || 0) - 1);
 
-            if (newData.length === 0 && currentFilters.page > 1) {
-                filtersToFetchWith = { ...currentFilters, page: currentFilters.page - 1 };
-                fetchNeeded = true;
-            } else if (newData.length === 0 && newTotal > 0) {
-                fetchNeeded = true; 
-            } else if (newData.length > 0 && currentSetsData.data.length !== newData.length) {
-                fetchNeeded = true;
+          set((state) => {
+            if (state.setsData) {
+              state.setsData.data = newData;
+              if (state.setsData.meta) {
+                state.setsData.meta.total = newTotal;
+              }
             }
+          });
+
+          if (newData.length === 0 && currentFilters.page > 1) {
+            filtersToFetchWith = {
+              ...currentFilters,
+              page: currentFilters.page - 1,
+            };
+            fetchNeeded = true;
+          } else if (newData.length === 0 && newTotal > 0) {
+            fetchNeeded = true;
+          } else if (
+            newData.length > 0 &&
+            currentSetsData.data.length !== newData.length
+          ) {
+            fetchNeeded = true;
+          }
         }
-        set((state) => { state.isMutating = false; });
+        set((state) => {
+          state.isMutating = false;
+        });
 
         if (fetchNeeded) {
-            await get().fetchSets(filtersToFetchWith);
+          await get().fetchSets(filtersToFetchWith);
         }
         return true;
       } catch (error) {
@@ -229,17 +280,25 @@ export const useFlashcardSetsStore: UseBoundStore<StoreApi<FlashcardSetsState>> 
 
     setFilters: (newFilters: Partial<FlashcardsSetFiltersViewModel>) => {
       const oldFilters = get().filters;
-      const resetPage = 
-          (newFilters.limit !== undefined && newFilters.limit !== oldFilters.limit) ||
-          (newFilters.sortBy !== undefined && newFilters.sortBy !== oldFilters.sortBy) ||
-          (newFilters.sortOrder !== undefined && newFilters.sortOrder !== oldFilters.sortOrder) ||
-          (newFilters.status !== undefined && newFilters.status !== oldFilters.status) ||
-          (newFilters.nameSearch !== undefined && newFilters.nameSearch !== oldFilters.nameSearch);
+      const resetPage =
+        (newFilters.limit !== undefined &&
+          newFilters.limit !== oldFilters.limit) ||
+        (newFilters.sortBy !== undefined &&
+          newFilters.sortBy !== oldFilters.sortBy) ||
+        (newFilters.sortOrder !== undefined &&
+          newFilters.sortOrder !== oldFilters.sortOrder) ||
+        (newFilters.status !== undefined &&
+          newFilters.status !== oldFilters.status) ||
+        (newFilters.nameSearch !== undefined &&
+          newFilters.nameSearch !== oldFilters.nameSearch);
 
       const updatedFilters = {
         ...oldFilters,
         ...newFilters,
-        page: resetPage && newFilters.page === undefined ? 1 : newFilters.page ?? oldFilters.page,
+        page:
+          resetPage && newFilters.page === undefined
+            ? 1
+            : (newFilters.page ?? oldFilters.page),
       };
       set((state) => {
         state.filters = updatedFilters;
@@ -249,7 +308,7 @@ export const useFlashcardSetsStore: UseBoundStore<StoreApi<FlashcardSetsState>> 
 
     resetFilters: () => {
       set((state) => {
-        state.filters = { ...state.initialFiltersState }; 
+        state.filters = { ...state.initialFiltersState };
       });
       get().fetchSets({ ...get().initialFiltersState });
     },
@@ -257,4 +316,4 @@ export const useFlashcardSetsStore: UseBoundStore<StoreApi<FlashcardSetsState>> 
 );
 
 // Użycie w komponencie:
-// const { setsData, isLoading, error, fetchSets, createSet, updateSet, deleteSet, filters, setFilters } = useFlashcardSetsStore(); 
+// const { setsData, isLoading, error, fetchSets, createSet, updateSet, deleteSet, filters, setFilters } = useFlashcardSetsStore();

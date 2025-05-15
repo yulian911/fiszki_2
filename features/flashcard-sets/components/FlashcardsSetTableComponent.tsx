@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React from "react";
 import {
   Table,
   TableBody,
@@ -17,9 +17,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { DotsHorizontalIcon } from '@radix-ui/react-icons';
-import type { FlashcardsSetViewItem } from '@/features/flashcard-sets/types';
-import type { FlashcardsSetDTO, FlashcardsSetStatus } from '@/types';
+import { DotsHorizontalIcon } from "@radix-ui/react-icons";
+import type { FlashcardsSetViewItem } from "@/features/flashcard-sets/types";
+import type { FlashcardsSetDTO, FlashcardsSetStatus } from "@/types";
 
 interface FlashcardsSetTableComponentProps {
   sets: FlashcardsSetViewItem[];
@@ -29,9 +29,12 @@ interface FlashcardsSetTableComponentProps {
   onDeleteSet: (set: FlashcardsSetDTO) => void;
 }
 
-const statusVariantMap: Record<FlashcardsSetStatus, "default" | "secondary" | "destructive" | "outline"> = {
+const statusVariantMap: Record<
+  FlashcardsSetStatus,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
   pending: "secondary",
-  accepted: "default", 
+  accepted: "default",
   rejected: "destructive",
 };
 
@@ -48,12 +51,11 @@ export function FlashcardsSetTableComponent({
   onEditSet,
   onDeleteSet,
 }: FlashcardsSetTableComponentProps) {
-
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pl-PL', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+    return new Date(dateString).toLocaleDateString("pl-PL", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
 
@@ -71,7 +73,7 @@ export function FlashcardsSetTableComponent({
   // przez EmptyStateSetsComponent na poziomie strony. Tutaj zwracamy null,
   // aby nie renderować pustej struktury tabeli, jeśli sets jest puste.
   if (!sets || sets.length === 0) {
-    return null; 
+    return null;
   }
 
   return (
@@ -81,17 +83,23 @@ export function FlashcardsSetTableComponent({
           <TableRow>
             <TableHead className="w-[35%] min-w-[200px]">Nazwa</TableHead>
             <TableHead className="w-[15%] min-w-[120px]">Status</TableHead>
-            <TableHead className="w-[20%] min-w-[150px]">Data utworzenia</TableHead>
-            <TableHead className="w-[15%] min-w-[100px] text-center">Liczba fiszek</TableHead>
-            <TableHead className="w-[15%] min-w-[100px] text-right">Akcje</TableHead>
+            <TableHead className="w-[20%] min-w-[150px]">
+              Data utworzenia
+            </TableHead>
+            <TableHead className="w-[15%] min-w-[100px] text-center">
+              Liczba fiszek
+            </TableHead>
+            <TableHead className="w-[15%] min-w-[100px] text-right">
+              Akcje
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {sets.map((set) => (
             <TableRow key={set.id}>
               <TableCell className="font-medium">
-                <button 
-                  onClick={() => onViewDetails(set.id)} 
+                <button
+                  onClick={() => onViewDetails(set.id)}
                   className="hover:underline focus:underline focus:outline-none text-left w-full truncate"
                   title={set.name}
                 >
@@ -99,19 +107,26 @@ export function FlashcardsSetTableComponent({
                 </button>
               </TableCell>
               <TableCell>
-                <Badge variant={statusVariantMap[set.status] || 'outline'} className="whitespace-nowrap">
+                <Badge
+                  variant={statusVariantMap[set.status] || "outline"}
+                  className="whitespace-nowrap"
+                >
                   {statusLabelMap[set.status] || set.status}
                 </Badge>
               </TableCell>
-              <TableCell className="whitespace-nowrap">{formatDate(set.createdAt)}</TableCell>
+              <TableCell className="whitespace-nowrap">
+                {formatDate(set.createdAt)}
+              </TableCell>
               <TableCell className="text-center">
-                {set.flashcardCount !== undefined ? set.flashcardCount : 'N/A'}
+                {set.flashcardCount !== undefined ? set.flashcardCount : "N/A"}
               </TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="h-8 w-8 p-0">
-                      <span className="sr-only">Otwórz menu dla {set.name}</span>
+                      <span className="sr-only">
+                        Otwórz menu dla {set.name}
+                      </span>
                       <DotsHorizontalIcon className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -122,7 +137,10 @@ export function FlashcardsSetTableComponent({
                     <DropdownMenuItem onClick={() => onEditSet(set)}>
                       Edytuj
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onDeleteSet(set)} className="text-red-600 focus:text-red-600 focus:bg-red-50">
+                    <DropdownMenuItem
+                      onClick={() => onDeleteSet(set)}
+                      className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                    >
                       Usuń
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -134,4 +152,4 @@ export function FlashcardsSetTableComponent({
       </Table>
     </div>
   );
-} 
+}

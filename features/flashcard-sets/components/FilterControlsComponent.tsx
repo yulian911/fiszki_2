@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -10,11 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useFlashcardSetsStore } from '@/features/flashcard-sets/hooks/useFlashcardSets';
-import type { FlashcardsSetStatus, FlashcardsSetDTO } from '@/types';
+import { useFlashcardSetsStore } from "@/features/flashcard-sets/hooks/useFlashcardSets";
+import type { FlashcardsSetStatus, FlashcardsSetDTO } from "@/types";
 
-const statusOptions: { label: string; value: FlashcardsSetStatus | "" }[] = [
-  { label: "Wszystkie", value: "" },
+const statusOptions: { label: string; value: FlashcardsSetStatus | "all" }[] = [
+  { label: "Wszystkie", value: "all" },
   { label: "Oczekujące", value: "pending" },
   { label: "Zaakceptowane", value: "accepted" },
   { label: "Odrzucone", value: "rejected" },
@@ -31,36 +31,45 @@ const sortOptions = [
 export function FilterControlsComponent() {
   const { filters, setFilters } = useFlashcardSetsStore();
 
-  const handleNameSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNameSearchChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     setFilters({ nameSearch: event.target.value, page: 1 });
   };
 
-  const handleStatusChange = (value: FlashcardsSetStatus | "") => {
-    setFilters({ status: value, page: 1 });
+  const handleStatusChange = (value: FlashcardsSetStatus | "all") => {
+    setFilters({ status: value === "all" ? "" : value, page: 1 });
   };
 
   const handleSortChange = (value: string) => {
-    const [sortBy, sortOrder] = value.split('_') as [keyof Omit<FlashcardsSetDTO, 'ownerId'>, "asc" | "desc"];
+    const [sortBy, sortOrder] = value.split("_") as [
+      keyof Omit<FlashcardsSetDTO, "ownerId">,
+      "asc" | "desc",
+    ];
     setFilters({ sortBy, sortOrder, page: 1 });
   };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-background shadow">
       <div>
-        <Label htmlFor="nameSearch" className="text-sm font-medium">Wyszukaj po nazwie</Label>
+        <Label htmlFor="nameSearch" className="text-sm font-medium">
+          Wyszukaj po nazwie
+        </Label>
         <Input
           id="nameSearch"
           type="text"
           placeholder="Wpisz nazwę zestawu..."
-          value={filters.nameSearch || ''}
+          value={filters.nameSearch || ""}
           onChange={handleNameSearchChange}
           className="mt-1"
         />
       </div>
       <div>
-        <Label htmlFor="statusFilter" className="text-sm font-medium">Status</Label>
+        <Label htmlFor="statusFilter" className="text-sm font-medium">
+          Status
+        </Label>
         <Select
-          value={filters.status || ""}
+          value={filters.status || "all"}
           onValueChange={handleStatusChange}
         >
           <SelectTrigger id="statusFilter" className="mt-1">
@@ -76,9 +85,15 @@ export function FilterControlsComponent() {
         </Select>
       </div>
       <div>
-        <Label htmlFor="sortOrder" className="text-sm font-medium">Sortuj według</Label>
+        <Label htmlFor="sortOrder" className="text-sm font-medium">
+          Sortuj według
+        </Label>
         <Select
-          value={filters.sortBy && filters.sortOrder ? `${filters.sortBy}_${filters.sortOrder}` : ""}
+          value={
+            filters.sortBy && filters.sortOrder
+              ? `${filters.sortBy}_${filters.sortOrder}`
+              : ""
+          }
           onValueChange={handleSortChange}
         >
           <SelectTrigger id="sortOrder" className="mt-1">
@@ -95,4 +110,4 @@ export function FilterControlsComponent() {
       </div>
     </div>
   );
-} 
+}
