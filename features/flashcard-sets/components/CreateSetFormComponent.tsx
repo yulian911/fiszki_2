@@ -27,12 +27,12 @@ const formSchema = z.object({
 type CreateSetFormValues = z.infer<typeof formSchema>;
 
 interface CreateSetFormComponentProps {
-  onFormSubmitSuccess: () => void; // Callback po pomyślnym utworzeniu
+  onFormSubmitSuccess: () => void;
   onCancel: () => void;
 }
 
 export function CreateSetFormComponent({ onFormSubmitSuccess, onCancel }: CreateSetFormComponentProps) {
-  const { createSet, isMutating, error: apiError } = useFlashcardSetsStore();
+  const { createSet, isMutating, error: apiError, resetError } = useFlashcardSetsStore();
 
   const form = useForm<CreateSetFormValues>({
     resolver: zodResolver(formSchema),
@@ -42,13 +42,20 @@ export function CreateSetFormComponent({ onFormSubmitSuccess, onCancel }: Create
   });
 
   async function onSubmit(values: CreateSetFormValues) {
-    const command: CreateFlashcardsSetCommand = { name: values.name };
-    const newSet = await createSet(command);
-    if (newSet) {
-      form.reset(); // Resetuj formularz po sukcesie
-      onFormSubmitSuccess(); // Wywołaj callback
+    console.log('Submitting create form:', { values, isMutating });
+    try {
+      resetError();
+      const command: CreateFlashcardsSetCommand = { name: values.name };
+      console.log('Creating set with command:', command);
+      const newSet = await createSet(command);
+      console.log('Set created:', newSet);
+      if (newSet) {
+        form.reset();
+        onFormSubmitSuccess();
+      }
+    } catch (error) {
+      console.error('Failed to create set:', error);
     }
-    // Obsługa błędów API jest już w store, ale można tu dodać specyficzną logikę jeśli potrzeba
   }
 
   return (
@@ -61,7 +68,11 @@ export function CreateSetFormComponent({ onFormSubmitSuccess, onCancel }: Create
             <FormItem>
               <FormLabel>Nazwa zestawu</FormLabel>
               <FormControl>
-                <Input placeholder="Np. Słówka z Angielskiego - Rozdział 1" {...field} />
+                <Input 
+                  placeholder="Np. Słówka z Angielskiego - Rozdział 1" 
+                  {...field} 
+                  disabled={isMutating}
+                />
               </FormControl>
               <FormDescription>
                 Podaj nazwę dla swojego nowego zestawu fiszek.
@@ -72,16 +83,28 @@ export function CreateSetFormComponent({ onFormSubmitSuccess, onCancel }: Create
         />
         
         {apiError && (
-            <p className="text-sm font-medium text-destructive">
-                Błąd API: {apiError.message}
-            </p>
+          <p className="text-sm font-medium text-destructive">
+            Błąd API: {apiError.message}
+          </p>
         )}
 
         <div className="flex justify-end space-x-3 pt-2">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isMutating}>
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={() => {
+              console.log('Canceling create form');
+              resetError();
+              onCancel();
+            }} 
+            disabled={isMutating}
+          >
             Anuluj
           </Button>
-          <Button type="submit" disabled={isMutating}>
+          <Button 
+            type="submit" 
+            disabled={isMutating || !form.formState.isDirty}
+          >
             {isMutating ? "Zapisywanie..." : "Zapisz zestaw"}
           </Button>
         </div>

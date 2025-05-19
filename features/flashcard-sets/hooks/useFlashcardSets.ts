@@ -110,6 +110,8 @@ interface FlashcardSetsState {
   deleteSet: (setId: string) => Promise<boolean>;
   setFilters: (newFilters: Partial<FlashcardsSetFiltersViewModel>) => void;
   resetFilters: () => void;
+  resetError: () => void;
+  resetState: () => void;
 }
 
 export const initialFilters: FlashcardsSetFiltersViewModel = {
@@ -137,6 +139,19 @@ export const useFlashcardSetsStore: UseBoundStore<
     filters: { ...initialFilters },
     initialFiltersState: Object.freeze({ ...initialFilters }),
 
+    resetError: () => {
+      set((state) => {
+        state.error = null;
+      });
+    },
+
+    resetState: () => {
+      set((state) => {
+        state.isMutating = false;
+        state.error = null;
+      });
+    },
+
     fetchSets: async (params?: FlashcardsSetFiltersViewModel) => {
       const currentFilters = params || get().filters;
       set((state) => {
@@ -163,6 +178,7 @@ export const useFlashcardSetsStore: UseBoundStore<
           state.isLoading = false;
         });
         console.error("Failed to fetch flashcard sets:", error);
+        throw error;
       }
     },
 
@@ -173,18 +189,17 @@ export const useFlashcardSetsStore: UseBoundStore<
       });
       try {
         const newSet = await apiClient.post("/flashcards-sets", command);
-        await get().fetchSets();
-        set((state) => {
-          state.isMutating = false;
-        });
         return newSet;
       } catch (error) {
         set((state) => {
           state.error = error as Error;
-          state.isMutating = false;
         });
         console.error("Failed to create flashcard set:", error);
-        return null;
+        throw error;
+      } finally {
+        set((state) => {
+          state.isMutating = false;
+        });
       }
     },
 
@@ -198,83 +213,38 @@ export const useFlashcardSetsStore: UseBoundStore<
           `/flashcards-sets/${setId}`,
           command
         );
-        set((state) => {
-          if (state.setsData) {
-            const index = state.setsData.data.findIndex((s) => s.id === setId);
-            if (index !== -1) {
-              state.setsData.data[index] = {
-                ...state.setsData.data[index],
-                ...updatedSet,
-              };
-            }
-          }
-          state.isMutating = false;
-        });
         return updatedSet;
       } catch (error) {
         set((state) => {
           state.error = error as Error;
-          state.isMutating = false;
         });
         console.error(`Failed to update flashcard set ${setId}:`, error);
-        return null;
+        throw error;
+      } finally {
+        set((state) => {
+          state.isMutating = false;
+        });
       }
     },
 
     deleteSet: async (setId: string) => {
-      let fetchNeeded = false;
-      let filtersToFetchWith = get().filters;
       set((state) => {
         state.isMutating = true;
         state.error = null;
       });
       try {
         await apiClient.delete(`/flashcards-sets/${setId}`);
-        const currentSetsData = get().setsData;
-        const currentFilters = get().filters;
-        if (currentSetsData) {
-          const newData = currentSetsData.data.filter((s) => s.id !== setId);
-          const newTotal = Math.max(0, (currentSetsData.meta?.total || 0) - 1);
-
-          set((state) => {
-            if (state.setsData) {
-              state.setsData.data = newData;
-              if (state.setsData.meta) {
-                state.setsData.meta.total = newTotal;
-              }
-            }
-          });
-
-          if (newData.length === 0 && currentFilters.page > 1) {
-            filtersToFetchWith = {
-              ...currentFilters,
-              page: currentFilters.page - 1,
-            };
-            fetchNeeded = true;
-          } else if (newData.length === 0 && newTotal > 0) {
-            fetchNeeded = true;
-          } else if (
-            newData.length > 0 &&
-            currentSetsData.data.length !== newData.length
-          ) {
-            fetchNeeded = true;
-          }
-        }
-        set((state) => {
-          state.isMutating = false;
-        });
-
-        if (fetchNeeded) {
-          await get().fetchSets(filtersToFetchWith);
-        }
         return true;
       } catch (error) {
         set((state) => {
           state.error = error as Error;
-          state.isMutating = false;
         });
         console.error(`Failed to delete flashcard set ${setId}:`, error);
-        return false;
+        throw error;
+      } finally {
+        set((state) => {
+          state.isMutating = false;
+        });
       }
     },
 
@@ -303,14 +273,18 @@ export const useFlashcardSetsStore: UseBoundStore<
       set((state) => {
         state.filters = updatedFilters;
       });
-      get().fetchSets(updatedFilters);
+      get().fetchSets(updatedFilters).catch((error) => {
+        console.error("Failed to fetch sets after filter change:", error);
+      });
     },
 
     resetFilters: () => {
       set((state) => {
         state.filters = { ...state.initialFiltersState };
       });
-      get().fetchSets({ ...get().initialFiltersState });
+      get().fetchSets({ ...get().initialFiltersState }).catch((error) => {
+        console.error("Failed to fetch sets after filter reset:", error);
+      });
     },
   }))
 );

@@ -1,12 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "../../../utils/supabase/server";
 import { z } from "zod";
-
 import { FlashcardsSetService } from "../../../services/FlashcardsSetService";
 import {
   flashcardsSetListQuerySchema,
   createFlashcardsSetSchema,
 } from "../../../features/schemas/flashcardsSet";
+import { rateLimit } from '@/lib/rate-limit';
+
+/**
+ * Helper function to handle authentication
+ */
+async function authenticateRequest(request: NextRequest) {
+  const supabase = await createClient();
+  
+  // Try to get user from session cookie
+  let {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  // If no user in cookie, check Authorization header
+  if (!user) {
+    const authHeader = request.headers.get("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.substring(7);
+      const { data, error } = await supabase.auth.getUser(token);
+      if (!error && data.user) {
+        user = data.user;
+        authError = null;
+      }
+    }
+  }
+
+  if (!user) {
+    throw new Error("Unauthorized access");
+  }
+
+  return { user, supabase };
+}
 
 /**
  * Pobieranie listy zestawów fiszek
@@ -14,42 +46,16 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Inicjalizacja klienta Supabase
-    const supabase = await createClient();
-
-    // Próba pobrania użytkownika z sesji cookie
-    let {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    // Jeśli nie udało się pobrać użytkownika z cookie, sprawdź nagłówek Authorization
-    if (!user) {
-      const authHeader = request.headers.get("Authorization");
-      if (authHeader && authHeader.startsWith("Bearer ")) {
-        const token = authHeader.substring(7);
-        const { data, error } = await supabase.auth.getUser(token);
-        if (!error && data.user) {
-          user = data.user;
-          authError = null;
-        }
-      }
-    }
-
-    // Jeśli nadal nie ma użytkownika, zwróć błąd autoryzacji
-    if (!user) {
+    // Rate limiting
+    const limiter = await rateLimit(request);
+    if (!limiter.success) {
       return NextResponse.json(
-        {
-          error: "Nieautoryzowany dostęp",
-          details:
-            "Musisz być zalogowany, aby wykonać tę operację. " +
-            "Sprawdź swoje ciasteczka sesji lub nagłówek Authorization.",
-        },
-        { status: 401 }
+        { error: "Too many requests" },
+        { status: 429 }
       );
     }
 
-    // Inicjalizacja serwisu z uwierzytelnionym klientem
+    const { user, supabase } = await authenticateRequest(request);
     const flashcardsSetService = new FlashcardsSetService(supabase);
 
     // Pobranie i walidacja parametrów zapytania
@@ -62,12 +68,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Walidacja parametrów zapytania
-    const validatedParams = flashcardsSetListQuerySchema.safeParse({
-      page: params.page,
-      limit: params.limit,
-      sortBy: params.sortBy,
-      status: params.status,
-    });
+    const validatedParams = flashcardsSetListQuerySchema.safeParse(params);
 
     if (!validatedParams.success) {
       return NextResponse.json(
@@ -89,11 +90,24 @@ export async function GET(request: NextRequest) {
       status
     );
 
-    return NextResponse.json(result);
+    // Add cache headers
+    const response = NextResponse.json(result);
+    response.headers.set('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=59');
+    return response;
   } catch (error) {
-    console.error("Błąd podczas pobierania zestawów fiszek:", error);
+    if (error instanceof Error && error.message === "Unauthorized access") {
+      return NextResponse.json(
+        {
+          error: "Unauthorized access",
+          details: "You must be logged in to perform this operation.",
+        },
+        { status: 401 }
+      );
+    }
+
+    console.error("Error fetching flashcard sets:", error);
     return NextResponse.json(
-      { error: "Wystąpił błąd serwera", details: (error as Error).message },
+      { error: "Server error", details: (error as Error).message },
       { status: 500 }
     );
   }
@@ -105,42 +119,16 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Inicjalizacja klienta Supabase
-    const supabase = await createClient();
-
-    // Próba pobrania użytkownika z sesji cookie
-    let {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    // Jeśli nie udało się pobrać użytkownika z cookie, sprawdź nagłówek Authorization
-    if (!user) {
-      const authHeader = request.headers.get("Authorization");
-      if (authHeader && authHeader.startsWith("Bearer ")) {
-        const token = authHeader.substring(7);
-        const { data, error } = await supabase.auth.getUser(token);
-        if (!error && data.user) {
-          user = data.user;
-          authError = null;
-        }
-      }
-    }
-
-    // Jeśli nadal nie ma użytkownika, zwróć błąd autoryzacji
-    if (!user) {
+    // Rate limiting
+    const limiter = await rateLimit(request);
+    if (!limiter.success) {
       return NextResponse.json(
-        {
-          error: "Nieautoryzowany dostęp",
-          details:
-            "Musisz być zalogowany, aby wykonać tę operację. " +
-            "Sprawdź swoje ciasteczka sesji lub nagłówek Authorization.",
-        },
-        { status: 401 }
+        { error: "Too many requests" },
+        { status: 429 }
       );
     }
 
-    // Inicjalizacja serwisu z uwierzytelnionym klientem
+    const { user, supabase } = await authenticateRequest(request);
     const flashcardsSetService = new FlashcardsSetService(supabase);
 
     // Pobranie i walidacja danych z żądania
@@ -167,24 +155,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Utworzenie nowego zestawu fiszek
-    try {
-      const result = await flashcardsSetService.create(
-        user.id,
-        validatedData.data
-      );
+    const result = await flashcardsSetService.create(
+      user.id,
+      validatedData.data
+    );
 
-      return NextResponse.json(result, { status: 201 });
-    } catch (error) {
-      console.error("Błąd podczas tworzenia zestawu fiszek:", error);
+    return NextResponse.json(result, { status: 201 });
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized access") {
       return NextResponse.json(
-        { error: "Wystąpił błąd serwera", details: (error as Error).message },
-        { status: 500 }
+        {
+          error: "Unauthorized access",
+          details: "You must be logged in to perform this operation.",
+        },
+        { status: 401 }
       );
     }
-  } catch (error) {
-    console.error("Błąd podczas tworzenia zestawu fiszek:", error);
+
+    console.error("Error creating flashcard set:", error);
     return NextResponse.json(
-      { error: "Wystąpił błąd serwera", details: (error as Error).message },
+      { error: "Server error", details: (error as Error).message },
       { status: 500 }
     );
   }

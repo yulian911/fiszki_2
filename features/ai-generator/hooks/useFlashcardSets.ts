@@ -1,3 +1,4 @@
+"use client"
 import { useState, useEffect } from "react";
 import { FlashcardsSetDTO } from "@/types";
 import { notify } from "../utils/notifications";

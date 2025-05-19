@@ -49,7 +49,7 @@ const statusOptions: { label: string; value: FlashcardsSetStatus }[] = [
 ];
 
 export function EditSetFormComponent({ set, onFormSubmitSuccess, onCancel }: EditSetFormComponentProps) {
-  const { updateSet, isMutating, error: apiError } = useFlashcardSetsStore();
+  const { updateSet, isMutating, error: apiError, resetError } = useFlashcardSetsStore();
 
   const form = useForm<EditSetFormValues>({
     resolver: zodResolver(formSchema),
@@ -60,35 +60,45 @@ export function EditSetFormComponent({ set, onFormSubmitSuccess, onCancel }: Edi
   });
 
   useEffect(() => {
+    console.log('Edit form mounted/updated:', { set, isMutating });
     if (set) {
       form.reset({
         name: set.name,
         status: set.status,
       });
     }
-  }, [set, form]);
+  }, [set, form, isMutating]);
 
   async function onSubmit(values: EditSetFormValues) {
-    const command: UpdateFlashcardsSetCommand = {};
-    let hasChanges = false;
+    console.log('Submitting edit form:', { values, isMutating, currentSet: set });
+    try {
+      resetError();
+      const command: UpdateFlashcardsSetCommand = {};
+      let hasChanges = false;
 
-    if (values.name !== set.name) {
-      command.name = values.name;
-      hasChanges = true;
-    }
-    if (values.status !== set.status) {
-      command.status = values.status;
-      hasChanges = true;
-    }
+      if (values.name !== set.name) {
+        command.name = values.name;
+        hasChanges = true;
+      }
+      if (values.status !== set.status) {
+        command.status = values.status;
+        hasChanges = true;
+      }
 
-    if (!hasChanges) {
-      onFormSubmitSuccess(); 
-      return;
-    }
+      if (!hasChanges) {
+        console.log('No changes detected, closing modal');
+        onFormSubmitSuccess();
+        return;
+      }
 
-    const updatedSet = await updateSet(set.id, command);
-    if (updatedSet) {
-      onFormSubmitSuccess(); 
+      console.log('Updating set with command:', command);
+      const updatedSet = await updateSet(set.id, command);
+      console.log('Set updated:', updatedSet);
+      if (updatedSet) {
+        onFormSubmitSuccess();
+      }
+    } catch (error) {
+      console.error('Failed to update set:', error);
     }
   }
 
@@ -102,7 +112,11 @@ export function EditSetFormComponent({ set, onFormSubmitSuccess, onCancel }: Edi
             <FormItem>
               <FormLabel>Nazwa zestawu</FormLabel>
               <FormControl>
-                <Input placeholder="Wpisz nową nazwę zestawu" {...field} />
+                <Input 
+                  placeholder="Wpisz nową nazwę zestawu" 
+                  {...field} 
+                  disabled={isMutating}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -114,7 +128,11 @@ export function EditSetFormComponent({ set, onFormSubmitSuccess, onCancel }: Edi
           render={({ field }) => (
             <FormItem>
               <FormLabel>Status</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select 
+                onValueChange={field.onChange} 
+                defaultValue={field.value}
+                disabled={isMutating}
+              >
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Wybierz status" />
@@ -134,16 +152,28 @@ export function EditSetFormComponent({ set, onFormSubmitSuccess, onCancel }: Edi
         />
         
         {apiError && (
-            <p className="text-sm font-medium text-destructive">
-                Błąd API: {apiError.message}
-            </p>
+          <p className="text-sm font-medium text-destructive">
+            Błąd API: {apiError.message}
+          </p>
         )}
 
         <div className="flex justify-end space-x-3 pt-2">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isMutating}>
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={() => {
+              console.log('Canceling edit form');
+              resetError();
+              onCancel();
+            }} 
+            disabled={isMutating}
+          >
             Anuluj
           </Button>
-          <Button type="submit" disabled={isMutating || !form.formState.isDirty}>
+          <Button 
+            type="submit" 
+            disabled={isMutating || !form.formState.isDirty}
+          >
             {isMutating ? "Zapisywanie..." : "Zapisz zmiany"}
           </Button>
         </div>

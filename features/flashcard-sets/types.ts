@@ -5,31 +5,40 @@ import type { FlashcardsSetDTO, FlashcardsSetStatus, MetaDTO } from '@/types';
 // należy to uzgodnić z backendem lub pominąć wyświetlanie liczby fiszek w tym widoku.
 
 /**
- * Typ używany do wyświetlania danych w tabeli/siatce, może rozszerzać FlashcardsSetDTO
- * o dodatkowe pola UI.
+ * Represents a flashcard set item as displayed in the UI table/grid.
+ * Extends the base DTO with UI-specific properties.
  */
 export interface FlashcardsSetViewItem extends FlashcardsSetDTO {
-  flashcardCount?: number; // Jeśli API nie dostarcza, może być opcjonalne
+  /** Number of flashcards in the set. Optional if not provided by the API. */
+  flashcardCount?: number;
   // isDeleting?: boolean; // Do obsługi stanu ładowania dla konkretnego wiersza
   // isEditing?: boolean; // Do obsługi stanu ładowania dla konkretnego wiersza
 }
 
 /**
- * Reprezentuje aktualny stan filtrów i sortowania.
+ * Represents the current state of filters and sorting for flashcard sets.
  */
 export interface FlashcardsSetFiltersViewModel {
+  /** Current page number (1-based) */
   page: number;
+  /** Number of items per page */
   limit: number;
-  sortBy?: keyof Omit<FlashcardsSetDTO, 'ownerId'> | string; // np. 'name', 'createdAt', usunięto ownerId jako niepotrzebne do sortowania
+  /** Field to sort by (excluding ownerId) */
+  sortBy?: keyof Omit<FlashcardsSetDTO, 'ownerId'> | string;
+  /** Sort direction */
   sortOrder?: "asc" | "desc";
-  status?: FlashcardsSetStatus | ""; // "" dla braku filtra statusu
-  nameSearch?: string; // Dla wyszukiwania po nazwie
+  /** Filter by set status. Empty string means no status filter */
+  status?: FlashcardsSetStatus | "";
+  /** Search term for filtering by name */
+  nameSearch?: string;
 }
 
 /**
- * Określa, który modal jest aktualnie otwarty i jakie dane przekazuje.
+ * Defines the current modal state and its associated data.
  */
 export interface CurrentModalViewModel {
+  /** Type of the currently open modal */
   type: "create" | "edit" | "delete" | null;
-  data?: FlashcardsSetDTO; // Dane dla modala edycji lub usunięcia
+  /** Data associated with the modal (for edit/delete operations) */
+  data?: FlashcardsSetDTO;
 } 

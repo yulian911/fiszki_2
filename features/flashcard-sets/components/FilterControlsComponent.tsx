@@ -29,24 +29,30 @@ const sortOptions = [
 ];
 
 export function FilterControlsComponent() {
-  const { filters, setFilters } = useFlashcardSetsStore();
+  const { filters, setFilters, isMutating } = useFlashcardSetsStore();
 
   const handleNameSearchChange = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    setFilters({ nameSearch: event.target.value, page: 1 });
+    if (!isMutating) {
+      setFilters({ nameSearch: event.target.value, page: 1 });
+    }
   };
 
   const handleStatusChange = (value: FlashcardsSetStatus | "all") => {
-    setFilters({ status: value === "all" ? "" : value, page: 1 });
+    if (!isMutating) {
+      setFilters({ status: value === "all" ? "" : value, page: 1 });
+    }
   };
 
   const handleSortChange = (value: string) => {
-    const [sortBy, sortOrder] = value.split("_") as [
-      keyof Omit<FlashcardsSetDTO, "ownerId">,
-      "asc" | "desc",
-    ];
-    setFilters({ sortBy, sortOrder, page: 1 });
+    if (!isMutating) {
+      const [sortBy, sortOrder] = value.split("_") as [
+        keyof Omit<FlashcardsSetDTO, "ownerId">,
+        "asc" | "desc",
+      ];
+      setFilters({ sortBy, sortOrder, page: 1 });
+    }
   };
 
   return (
@@ -62,6 +68,7 @@ export function FilterControlsComponent() {
           value={filters.nameSearch || ""}
           onChange={handleNameSearchChange}
           className="mt-1"
+          disabled={isMutating}
         />
       </div>
       <div>
@@ -71,6 +78,7 @@ export function FilterControlsComponent() {
         <Select
           value={filters.status || "all"}
           onValueChange={handleStatusChange}
+          disabled={isMutating}
         >
           <SelectTrigger id="statusFilter" className="mt-1">
             <SelectValue placeholder="Wybierz status" />
@@ -95,6 +103,7 @@ export function FilterControlsComponent() {
               : ""
           }
           onValueChange={handleSortChange}
+          disabled={isMutating}
         >
           <SelectTrigger id="sortOrder" className="mt-1">
             <SelectValue placeholder="Wybierz kolejność" />

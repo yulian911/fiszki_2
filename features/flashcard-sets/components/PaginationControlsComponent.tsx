@@ -27,20 +27,22 @@ interface PaginationControlsProps {
 const defaultPageSizes = [10, 20, 30, 50, 100];
 
 export function PaginationControlsComponent({ meta /*, availablePageSizes = defaultPageSizes */ }: PaginationControlsProps) {
-  const { filters, setFilters } = useFlashcardSetsStore(); // Pobieramy również `filters`, aby mieć dostęp do aktualnego `limit` przy inicjalizacji Selecta
+  const { filters, setFilters, isMutating } = useFlashcardSetsStore();
   const { page, limit, total } = meta;
   const totalPages = Math.ceil(total / limit);
 
   const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages && newPage !== page) {
+    if (!isMutating && newPage >= 1 && newPage <= totalPages && newPage !== page) {
       setFilters({ page: newPage });
     }
   };
 
   const handleLimitChange = (newLimitString: string) => {
-    const newLimit = parseInt(newLimitString, 10);
-    if (newLimit !== filters.limit) { // Sprawdzamy czy limit faktycznie się zmienił
-        setFilters({ limit: newLimit, page: 1 }); // Resetuj do pierwszej strony przy zmianie limitu
+    if (!isMutating) {
+      const newLimit = parseInt(newLimitString, 10);
+      if (newLimit !== filters.limit) {
+        setFilters({ limit: newLimit, page: 1 });
+      }
     }
   };
 
@@ -64,7 +66,11 @@ export function PaginationControlsComponent({ meta /*, availablePageSizes = defa
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-2">
             <p className="text-sm font-medium hidden md:block">Elementów na stronie:</p>
-            <Select value={limit.toString()} onValueChange={handleLimitChange}>
+            <Select 
+              value={limit.toString()} 
+              onValueChange={handleLimitChange}
+              disabled={isMutating}
+            >
             <SelectTrigger className="h-9 w-[75px]">
                 <SelectValue placeholder={limit.toString()} />
             </SelectTrigger>
@@ -82,7 +88,7 @@ export function PaginationControlsComponent({ meta /*, availablePageSizes = defa
             variant="outline"
             className="hidden h-9 w-9 p-0 lg:flex"
             onClick={() => handlePageChange(1)}
-            disabled={page === 1}
+            disabled={page === 1 || isMutating}
             >
             <span className="sr-only">Przejdź do pierwszej strony</span>
             <DoubleArrowLeftIcon className="h-4 w-4" />
@@ -91,7 +97,7 @@ export function PaginationControlsComponent({ meta /*, availablePageSizes = defa
             variant="outline"
             className="h-9 w-9 p-0"
             onClick={() => handlePageChange(page - 1)}
-            disabled={page === 1}
+            disabled={page === 1 || isMutating}
             >
             <span className="sr-only">Przejdź do poprzedniej strony</span>
             <ChevronLeftIcon className="h-4 w-4" />
@@ -103,7 +109,7 @@ export function PaginationControlsComponent({ meta /*, availablePageSizes = defa
             variant="outline"
             className="h-9 w-9 p-0"
             onClick={() => handlePageChange(page + 1)}
-            disabled={page === totalPages}
+            disabled={page === totalPages || isMutating}
             >
             <span className="sr-only">Przejdź do następnej strony</span>
             <ChevronRightIcon className="h-4 w-4" />
@@ -112,7 +118,7 @@ export function PaginationControlsComponent({ meta /*, availablePageSizes = defa
             variant="outline"
             className="hidden h-9 w-9 p-0 lg:flex"
             onClick={() => handlePageChange(totalPages)}
-            disabled={page === totalPages}
+            disabled={page === totalPages || isMutating}
             >
             <span className="sr-only">Przejdź do ostatniej strony</span>
             <DoubleArrowRightIcon className="h-4 w-4" />

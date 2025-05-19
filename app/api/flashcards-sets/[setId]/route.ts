@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "../../../../utils/supabase/client";
-import { z } from "zod";
 
+
+import { createClient } from "@/utils/supabase/server";
 import { FlashcardsSetService } from "../../../../services/FlashcardsSetService";
 import {
   idParamSchema,
@@ -31,7 +31,7 @@ export async function GET(
     }
 
     // Inicjalizacja klienta Supabase
-    const supabase = createSupabaseServerClient();
+    const supabase = await createClient ();
 
     // Pobranie danych użytkownika z sesji
     const {
@@ -106,7 +106,7 @@ export async function PUT(
     }
 
     // Inicjalizacja klienta Supabase
-    const supabase = createSupabaseServerClient();
+    const supabase = await createClient ();
 
     // Pobranie danych użytkownika z sesji
     const {
@@ -211,7 +211,7 @@ export async function DELETE(
     }
 
     // Inicjalizacja klienta Supabase
-    const supabase = createSupabaseServerClient();
+    const supabase = await createClient ();
 
     // Pobranie danych użytkownika z sesji
     const {

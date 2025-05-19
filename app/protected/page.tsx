@@ -1,8 +1,9 @@
 import { createClient } from "@/utils/supabase/server";
 import { InfoIcon } from "lucide-react";
 import { redirect } from "next/navigation";
-import { AIGeneratorButton } from "../features/ai-generator/components/AIGeneratorButton";
+
 import withAuth from "@/lib/withAuth";
+import { AIGeneratorButton } from "@/features/ai-generator";
 
 function ProtectedPage() {
   return (
