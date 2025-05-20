@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { TextGenerationForm } from "./TextGenerationForm";
 import { LoadingSpinner } from "./LoadingSpinner";
 
-import { ToastProvider } from "./ToastProvider";
+
 
 import {
   Drawer,
@@ -263,7 +263,7 @@ export function AIFlashcardGeneratorDialog({
           </DialogContent>
         </Dialog>
       )}
-      <ToastProvider />
+    
     </>
   );
 }

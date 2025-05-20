@@ -6,29 +6,27 @@ import {
   flashcardsSetListQuerySchema,
   createFlashcardsSetSchema,
 } from "../../../features/schemas/flashcardsSet";
-import { rateLimit } from '@/lib/rate-limit';
+import { rateLimit } from '../../../lib/rate-limit';
 
 /**
  * Helper function to handle authentication
+ * Gets user from session cookie or Authorization header
  */
 async function authenticateRequest(request: NextRequest) {
   const supabase = await createClient();
   
   // Try to get user from session cookie
-  let {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-  // If no user in cookie, check Authorization header
-  if (!user) {
+  // If no user found, check Authorization header
+  if (!user && request.headers.has("Authorization")) {
     const authHeader = request.headers.get("Authorization");
     if (authHeader?.startsWith("Bearer ")) {
       const token = authHeader.substring(7);
       const { data, error } = await supabase.auth.getUser(token);
+      
       if (!error && data.user) {
-        user = data.user;
-        authError = null;
+        return { user: data.user, supabase };
       }
     }
   }
@@ -64,7 +62,9 @@ export async function GET(request: NextRequest) {
       page: url.searchParams.get("page") || "1",
       limit: url.searchParams.get("limit") || "20",
       sortBy: url.searchParams.get("sortBy") || "createdAt",
+      sortOrder: url.searchParams.get("sortOrder") || "desc",
       status: url.searchParams.get("status") ?? undefined,
+      name: url.searchParams.get("name") ?? undefined,
     };
 
     // Walidacja parametrów zapytania
@@ -81,13 +81,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Pobranie listy zestawów fiszek
-    const { page, limit, sortBy, status } = validatedParams.data;
+    const { page, limit, sortBy, sortOrder, status, name } = validatedParams.data;
     const result = await flashcardsSetService.list(
       user.id,
       page,
       limit,
       sortBy,
-      status
+      sortOrder,
+      status,
+      name
     );
 
     // Add cache headers

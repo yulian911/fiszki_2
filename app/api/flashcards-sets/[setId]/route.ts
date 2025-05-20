@@ -14,9 +14,12 @@ import {
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { setId: string } }
+  context: { params: Promise<{ setId: string }> }
 ) {
   try {
+    // Get and await params
+    const params = await context.params;
+    
     // Walidacja ID zestawu
     const validatedParams = idParamSchema.safeParse({ setId: params.setId });
 
@@ -89,9 +92,12 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { setId: string } }
+  context: { params: Promise<{ setId: string }> }
 ) {
   try {
+    // Get and await params
+    const params = await context.params;
+    
     // Walidacja ID zestawu
     const validatedParams = idParamSchema.safeParse({ setId: params.setId });
 
@@ -194,9 +200,12 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { setId: string } }
+  context: { params: Promise<{ setId: string }> }
 ) {
   try {
+    // Get and await params
+    const params = await context.params;
+    
     // Walidacja ID zestawu
     const validatedParams = idParamSchema.safeParse({ setId: params.setId });
 

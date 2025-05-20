@@ -45,6 +45,8 @@ function mapFlashcardsSetToDTO(record: unknown): FlashcardsSetDTO {
     status: item.status,
     createdAt: item.created_at,
     updatedAt: item.updated_at,
+    description: item.description,
+    flashcardCount: item.flashcard_count,
   };
 }
 
@@ -63,7 +65,9 @@ export class FlashcardsSetService {
     page: number = 1,
     limit: number = 20,
     sortBy: string = "createdAt",
-    status?: FlashcardsSetStatus
+    sortOrder: string = "desc",
+    status?: FlashcardsSetStatus,
+    nameSearch?: string
   ): Promise<PaginatedResponse<FlashcardsSetDTO>> {
     // Obliczanie przesunięcia dla paginacji
     const offset = (page - 1) * limit;
@@ -78,6 +82,11 @@ export class FlashcardsSetService {
     if (status) {
       query = query.eq("status", status);
     }
+    
+    // Dodanie filtrowania po nazwie, jeśli podano
+    if (nameSearch) {
+      query = query.ilike("name", `%${nameSearch}%`);
+    }
 
     // Sortowanie i paginacja: mapujemy sortBy na nazwy kolumn w DB
     const sortColumnMap: Record<string, string> = {
@@ -86,7 +95,8 @@ export class FlashcardsSetService {
       updatedAt: 'updated_at',
     };
     const column = sortColumnMap[sortBy] ?? 'created_at';
-    const ascending = sortBy === 'name';
+    const ascending = sortOrder === 'asc';
+    
     const { data, error, count } = await query
       .order(column, { ascending })
       .range(offset, offset + limit - 1);
@@ -148,6 +158,7 @@ export class FlashcardsSetService {
       .insert({
         owner_id: userData.user.id, // Używamy ID z aktualnej sesji zamiast przekazanego
         name: command.name,
+        description: command.description,
         status: "pending",
       })
       .select()
@@ -243,30 +254,39 @@ export class FlashcardsSetService {
     setId: string,
     command: UpdateFlashcardsSetCommand
   ): Promise<FlashcardsSetDTO> {
-    // Sprawdzenie, czy zestaw istnieje i należy do użytkownika
-    const { data: existingSet, error: checkError } = await this.supabase
-      .from("flashcards_set")
-      .select("*")
-      .eq("id", setId)
-      .eq("owner_id", userId)
-      .single();
+    // Przygotowanie pól do aktualizacji
+    const updates: Partial<{
+      name: string;
+      status: FlashcardsSetStatus;
+      description: string;
+    }> = {};
 
-    if (checkError) {
-      throw new Error(
-        `Zestaw nie istnieje lub użytkownik nie ma do niego dostępu: ${checkError.message}`
-      );
+    if (command.name !== undefined) {
+      updates.name = command.name;
     }
 
-    // Przygotowanie danych do aktualizacji
-    const updateData: Partial<Record<string, unknown>> = {};
-    if (command.name !== undefined) updateData.name = command.name;
-    if (command.status !== undefined) updateData.status = command.status;
+    if (command.status !== undefined) {
+      updates.status = command.status;
+    }
+    
+    if (command.description !== undefined) {
+      updates.description = command.description;
+    }
 
-    // Aktualizacja zestawu
+    // Sprawdzenie, czy cokolwiek wymaga aktualizacji
+    if (Object.keys(updates).length === 0) {
+      throw new Error("Brak pól do aktualizacji");
+    }
+
+    console.log("Aktualizacja zestawu:", setId, "dla użytkownika:", userId);
+    console.log("Aktualizowane pola:", updates);
+
+    // Wykonanie aktualizacji
     const { data, error } = await this.supabase
       .from("flashcards_set")
-      .update(updateData)
+      .update(updates)
       .eq("id", setId)
+      .eq("owner_id", userId)
       .select()
       .single();
 

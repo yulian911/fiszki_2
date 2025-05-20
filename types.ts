@@ -89,22 +89,31 @@ export interface FlashcardsSetDTO {
   status: FlashcardsSetStatus;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Liczba fiszek w zestawie, wysyłana z API
+   */
+  flashcardCount?: number;
+  /**
+   * Opcjonalny opis zestawu fiszek
+   */
+  description?: string;
 }
 
 /**
  * Komenda tworzenia nowego zestawu fiszek
- * Wymaga jedynie nazwy (kolumna name).
+ * Wymaga nazwy i opcjonalnie opisu.
  */
 export interface CreateFlashcardsSetCommand {
   name: FlashcardsSetDTO["name"];
+  description?: FlashcardsSetDTO["description"];
 }
 
 /**
  * Komenda aktualizacji zestawu fiszek
- * Pozwala na zmianę nazwy i/lub statusu (kolumny name, status)
+ * Pozwala na zmianę nazwy, statusu i opisu
  */
 export type UpdateFlashcardsSetCommand = Partial<
-  Pick<FlashcardsSetDTO, "name" | "status">
+  Pick<FlashcardsSetDTO, "name" | "status" | "description">
 >;
 
 /**

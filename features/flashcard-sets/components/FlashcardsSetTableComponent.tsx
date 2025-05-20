@@ -20,13 +20,12 @@ import {
 import { DotsHorizontalIcon } from "@radix-ui/react-icons";
 import type { FlashcardsSetViewItem } from "@/features/flashcard-sets/types";
 import type { FlashcardsSetDTO, FlashcardsSetStatus } from "@/types";
+import useEditModalSet from "../hooks/useEditModal";
 
 interface FlashcardsSetTableComponentProps {
   sets: FlashcardsSetViewItem[];
   isLoading: boolean;
   onViewDetails: (setId: string) => void;
-  onEditSet: (set: FlashcardsSetDTO) => void;
-  onDeleteSet: (set: FlashcardsSetDTO) => void;
 }
 
 const statusVariantMap: Record<
@@ -48,9 +47,8 @@ export function FlashcardsSetTableComponent({
   sets,
   isLoading,
   onViewDetails,
-  onEditSet,
-  onDeleteSet,
 }: FlashcardsSetTableComponentProps) {
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("pl-PL", {
       year: "numeric",
@@ -58,7 +56,7 @@ export function FlashcardsSetTableComponent({
       day: "numeric",
     });
   };
-
+  const { flashcardSetEditId,deleteOpen, openEdit, closeEdit } = useEditModalSet();
   if (isLoading) {
     return (
       <div className="border rounded-lg p-4">
@@ -72,9 +70,7 @@ export function FlashcardsSetTableComponent({
   // Stan pustej tabeli (gdy sets=[] ale nie ma isLoading) powinien być obsłużony
   // przez EmptyStateSetsComponent na poziomie strony. Tutaj zwracamy null,
   // aby nie renderować pustej struktury tabeli, jeśli sets jest puste.
-  if (!sets || sets.length === 0) {
-    return null;
-  }
+
 
   return (
     <div className="border rounded-lg overflow-hidden shadow">
@@ -120,31 +116,27 @@ export function FlashcardsSetTableComponent({
               <TableCell className="text-center">
                 {set.flashcardCount !== undefined ? set.flashcardCount : "N/A"}
               </TableCell>
-              <TableCell className="text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0">
-                      <span className="sr-only">
-                        Otwórz menu dla {set.name}
-                      </span>
-                      <DotsHorizontalIcon className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onViewDetails(set.id)}>
-                      Zobacz szczegóły
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onEditSet(set)}>
-                      Edytuj
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => onDeleteSet(set)}
-                      className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                    >
-                      Usuń
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              <TableCell className="text-right space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => onViewDetails(set.id)}
+                >
+                  Szczegóły
+                </Button>
+                <Button 
+                  size="sm"
+                  onClick={() => openEdit(set.id)}
+                >
+                  Edytuj
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={() => deleteOpen(set.id)}
+                >
+                  Usuń
+                </Button>
               </TableCell>
             </TableRow>
           ))}

@@ -15,33 +15,40 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useFlashcardSetsStore } from "@/features/flashcard-sets/hooks/useFlashcardSets";
 import type { MetaDTO } from "@/types";
 
 interface PaginationControlsProps {
   meta: MetaDTO;
+  onPageChange: (page: number) => void;
+  onLimitChange?: (limit: number) => void;
+  isLoading?: boolean;
   // Można dodać opcjonalny prop na dostępne rozmiary strony, jeśli chcemy to konfigurować z zewnątrz
   // availablePageSizes?: number[];
 }
 
 const defaultPageSizes = [10, 20, 30, 50, 100];
 
-export function PaginationControlsComponent({ meta /*, availablePageSizes = defaultPageSizes */ }: PaginationControlsProps) {
-  const { filters, setFilters, isMutating } = useFlashcardSetsStore();
+export function PaginationControlsComponent({ 
+  meta, 
+  onPageChange,
+  onLimitChange,
+  isLoading = false,
+  /*, availablePageSizes = defaultPageSizes */ 
+}: PaginationControlsProps) {
   const { page, limit, total } = meta;
   const totalPages = Math.ceil(total / limit);
 
   const handlePageChange = (newPage: number) => {
-    if (!isMutating && newPage >= 1 && newPage <= totalPages && newPage !== page) {
-      setFilters({ page: newPage });
+    if (!isLoading && newPage >= 1 && newPage <= totalPages && newPage !== page) {
+      onPageChange(newPage);
     }
   };
 
   const handleLimitChange = (newLimitString: string) => {
-    if (!isMutating) {
+    if (!isLoading && onLimitChange) {
       const newLimit = parseInt(newLimitString, 10);
-      if (newLimit !== filters.limit) {
-        setFilters({ limit: newLimit, page: 1 });
+      if (newLimit !== limit) {
+        onLimitChange(newLimit);
       }
     }
   };
@@ -69,7 +76,7 @@ export function PaginationControlsComponent({ meta /*, availablePageSizes = defa
             <Select 
               value={limit.toString()} 
               onValueChange={handleLimitChange}
-              disabled={isMutating}
+              disabled={isLoading}
             >
             <SelectTrigger className="h-9 w-[75px]">
                 <SelectValue placeholder={limit.toString()} />
@@ -88,7 +95,7 @@ export function PaginationControlsComponent({ meta /*, availablePageSizes = defa
             variant="outline"
             className="hidden h-9 w-9 p-0 lg:flex"
             onClick={() => handlePageChange(1)}
-            disabled={page === 1 || isMutating}
+            disabled={page === 1 || isLoading}
             >
             <span className="sr-only">Przejdź do pierwszej strony</span>
             <DoubleArrowLeftIcon className="h-4 w-4" />
@@ -97,7 +104,7 @@ export function PaginationControlsComponent({ meta /*, availablePageSizes = defa
             variant="outline"
             className="h-9 w-9 p-0"
             onClick={() => handlePageChange(page - 1)}
-            disabled={page === 1 || isMutating}
+            disabled={page === 1 || isLoading}
             >
             <span className="sr-only">Przejdź do poprzedniej strony</span>
             <ChevronLeftIcon className="h-4 w-4" />
@@ -109,7 +116,7 @@ export function PaginationControlsComponent({ meta /*, availablePageSizes = defa
             variant="outline"
             className="h-9 w-9 p-0"
             onClick={() => handlePageChange(page + 1)}
-            disabled={page === totalPages || isMutating}
+            disabled={page === totalPages || isLoading}
             >
             <span className="sr-only">Przejdź do następnej strony</span>
             <ChevronRightIcon className="h-4 w-4" />
@@ -118,7 +125,7 @@ export function PaginationControlsComponent({ meta /*, availablePageSizes = defa
             variant="outline"
             className="hidden h-9 w-9 p-0 lg:flex"
             onClick={() => handlePageChange(totalPages)}
-            disabled={page === totalPages || isMutating}
+            disabled={page === totalPages || isLoading}
             >
             <span className="sr-only">Przejdź do ostatniej strony</span>
             <DoubleArrowRightIcon className="h-4 w-4" />

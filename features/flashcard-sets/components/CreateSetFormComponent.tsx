@@ -1,62 +1,60 @@
 "use client";
 
-import React from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
+import React, { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useFlashcardSetsStore } from '@/features/flashcard-sets/hooks/useFlashcardSets';
-import type { CreateFlashcardsSetCommand } from '@/types';
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { createFlashcardsSetSchema } from "@/features/schemas/flashcardsSet";
+import { SubmitButton } from "@/components/submit-button";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCreateFlashcardSet } from "../api/useMutateFlashcardSets";
+import { toast } from "sonner";
 
-const formSchema = z.object({
-  name: z.string()
-    .min(3, { message: "Nazwa zestawu musi mieć co najmniej 3 znaki." })
-    .max(100, { message: "Nazwa zestawu nie może przekraczać 100 znaków." }),
-});
-
-type CreateSetFormValues = z.infer<typeof formSchema>;
-
-interface CreateSetFormComponentProps {
-  onFormSubmitSuccess: () => void;
+type Props = {
   onCancel: () => void;
-}
+};
 
-export function CreateSetFormComponent({ onFormSubmitSuccess, onCancel }: CreateSetFormComponentProps) {
-  const { createSet, isMutating, error: apiError, resetError } = useFlashcardSetsStore();
+// Typ formularza na podstawie schematu Zod
+type FormValues = z.infer<typeof createFlashcardsSetSchema>;
 
-  const form = useForm<CreateSetFormValues>({
-    resolver: zodResolver(formSchema),
+export function CreateSetFormComponent({ onCancel }: Props) {
+  // Pobranie metod do obsługi formularza
+  const form = useForm<FormValues>({
+    resolver: zodResolver(createFlashcardsSetSchema),
     defaultValues: {
       name: "",
+      description: "",
     },
   });
 
-  async function onSubmit(values: CreateSetFormValues) {
-    console.log('Submitting create form:', { values, isMutating });
-    try {
-      resetError();
-      const command: CreateFlashcardsSetCommand = { name: values.name };
-      console.log('Creating set with command:', command);
-      const newSet = await createSet(command);
-      console.log('Set created:', newSet);
-      if (newSet) {
-        form.reset();
-        onFormSubmitSuccess();
+  const queryClient = useQueryClient();
+  const { mutate: createSet, isPending } = useCreateFlashcardSet();
+
+  // Obsługa wysłania formularza
+  const onSubmit = async (values: FormValues) => {
+    createSet(values, {
+      onSuccess: async () => {
+        // Najpierw zamykamy modal
+        onCancel();
+        // Potem pokazujemy powiadomienie o sukcesie
+        toast.success("Zestaw fiszek został utworzony");
+      },
+      onError: (error) => {
+        toast.error(`Błąd podczas tworzenia zestawu fiszek: ${error.message}`);
       }
-    } catch (error) {
-      console.error('Failed to create set:', error);
-    }
-  }
+    });
+  };
 
   return (
     <Form {...form}>
@@ -68,44 +66,46 @@ export function CreateSetFormComponent({ onFormSubmitSuccess, onCancel }: Create
             <FormItem>
               <FormLabel>Nazwa zestawu</FormLabel>
               <FormControl>
-                <Input 
-                  placeholder="Np. Słówka z Angielskiego - Rozdział 1" 
-                  {...field} 
-                  disabled={isMutating}
+                <Input
+                  placeholder="Wpisz nazwę zestawu..."
+                  {...field}
+                  disabled={isPending}
                 />
               </FormControl>
-              <FormDescription>
-                Podaj nazwę dla swojego nowego zestawu fiszek.
-              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
-        
-        {apiError && (
-          <p className="text-sm font-medium text-destructive">
-            Błąd API: {apiError.message}
-          </p>
-        )}
 
-        <div className="flex justify-end space-x-3 pt-2">
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={() => {
-              console.log('Canceling create form');
-              resetError();
-              onCancel();
-            }} 
-            disabled={isMutating}
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Opis (opcjonalnie)</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="Opisz zestaw..."
+                  {...field}
+                  disabled={isPending}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="flex justify-end space-x-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isPending}
           >
             Anuluj
           </Button>
-          <Button 
-            type="submit" 
-            disabled={isMutating || !form.formState.isDirty}
-          >
-            {isMutating ? "Zapisywanie..." : "Zapisz zestaw"}
+          <Button type="submit" disabled={isPending}>
+            {isPending ? "Tworzenie..." : "Utwórz"}
           </Button>
         </div>
       </form>

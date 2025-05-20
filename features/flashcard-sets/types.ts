@@ -9,10 +9,8 @@ import type { FlashcardsSetDTO, FlashcardsSetStatus, MetaDTO } from '@/types';
  * Extends the base DTO with UI-specific properties.
  */
 export interface FlashcardsSetViewItem extends FlashcardsSetDTO {
-  /** Number of flashcards in the set. Optional if not provided by the API. */
-  flashcardCount?: number;
-  // isDeleting?: boolean; // Do obsługi stanu ładowania dla konkretnego wiersza
-  // isEditing?: boolean; // Do obsługi stanu ładowania dla konkretnego wiersza
+  /** Number of flashcards in the set. */
+  flashcardCount: number;
 }
 
 /**

@@ -22,8 +22,14 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useFlashcardSetsStore } from '@/features/flashcard-sets/hooks/useFlashcardSets';
 import type { UpdateFlashcardsSetCommand, FlashcardsSetDTO, FlashcardsSetStatus } from '@/types';
+import { useGetFlashCardsSetId } from '../api/useGetFlashcardSetsId';
+import { useUpdateFlashcardSet } from '../api/useMutateFlashcardSets';
+import { useQueryClient } from '@tanstack/react-query';
+import { FLASHCARD_SETS_QUERY_KEY } from '../api/useGetFlashcardSets';
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { SubmitButton } from "@/components/submit-button";
 
 const flashcardsSetStatusEnum = z.enum(["pending", "accepted", "rejected"]);
 
@@ -32,14 +38,14 @@ const formSchema = z.object({
     .min(3, { message: "Nazwa zestawu musi mieć co najmniej 3 znaki." })
     .max(100, { message: "Nazwa zestawu nie może przekraczać 100 znaków." }),
   status: flashcardsSetStatusEnum,
+  description: z.string().max(500, { message: "Opis nie może przekraczać 500 znaków." }),
 });
 
 type EditSetFormValues = z.infer<typeof formSchema>;
 
 interface EditSetFormComponentProps {
-  set: FlashcardsSetDTO;
-  onFormSubmitSuccess: () => void;
-  onCancel: () => void;
+  flashcardSetId: string;
+  onCancel?: () => void;
 }
 
 const statusOptions: { label: string; value: FlashcardsSetStatus }[] = [
@@ -48,59 +54,109 @@ const statusOptions: { label: string; value: FlashcardsSetStatus }[] = [
   { label: "Odrzucony", value: "rejected" },
 ];
 
-export function EditSetFormComponent({ set, onFormSubmitSuccess, onCancel }: EditSetFormComponentProps) {
-  const { updateSet, isMutating, error: apiError, resetError } = useFlashcardSetsStore();
-
+export function EditSetFormComponent({ onCancel, flashcardSetId }: EditSetFormComponentProps) {
+  const { data, isLoading, error } = useGetFlashCardsSetId({ flashcardSetId });
+  const updateMutation = useUpdateFlashcardSet();
+  const queryClient = useQueryClient();
+  
+  // Check both data formats - some APIs return {flashcardSet: {...}} and others return the set directly
+  const flashcardSet = data?.flashcardSet || data;
+  
+  console.log('Data from query:', data);
+  console.log('Extracted flashcardSet:', flashcardSet);
+  
   const form = useForm<EditSetFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: set?.name || "",
-      status: set?.status || "pending",
+      name: "",
+      status: "pending",
+      description: "",
     },
   });
 
+  // Update form when data is loaded
   useEffect(() => {
-    console.log('Edit form mounted/updated:', { set, isMutating });
-    if (set) {
+    if (flashcardSet) {
       form.reset({
-        name: set.name,
-        status: set.status,
+        name: flashcardSet.name || "",
+        status: flashcardSet.status || "pending",
+        description: flashcardSet.description || "",
       });
     }
-  }, [set, form, isMutating]);
+  }, [flashcardSet, form]);
 
   async function onSubmit(values: EditSetFormValues) {
-    console.log('Submitting edit form:', { values, isMutating, currentSet: set });
+    console.log('Form submitted with values:', values);
+    
+    if (!flashcardSet || typeof flashcardSet !== 'object') {
+      console.error('No valid flashcard set data available!', flashcardSet);
+      return;
+    }
+    
+    // Make sure we have an ID before proceeding
+    const setId = flashcardSet.id;
+    if (!setId) {
+      console.error('Flashcard set has no ID!', flashcardSet);
+      return;
+    }
+    
+    console.log('Current flashcard set:', flashcardSet);
+    
+    const command: UpdateFlashcardsSetCommand = {};
+    let hasChanges = false;
+
+    if (values.name !== flashcardSet.name) {
+      command.name = values.name;
+      hasChanges = true;
+      console.log(`Name changed from "${flashcardSet.name}" to "${values.name}"`);
+    }
+    
+    if (values.status !== flashcardSet.status) {
+      command.status = values.status;
+      hasChanges = true;
+      console.log(`Status changed from "${flashcardSet.status}" to "${values.status}"`);
+    }
+
+    if (values.description !== flashcardSet.description) {
+      command.description = values.description;
+      hasChanges = true;
+      console.log(`Description changed from "${flashcardSet.description}" to "${values.description}"`);
+    }
+
+    if (!hasChanges) {
+      console.log('No changes detected, closing modal');
+      onCancel?.();
+      return;
+    }
+
+    console.log('Changes detected, sending update with command:', command);
+    
     try {
-      resetError();
-      const command: UpdateFlashcardsSetCommand = {};
-      let hasChanges = false;
-
-      if (values.name !== set.name) {
-        command.name = values.name;
-        hasChanges = true;
-      }
-      if (values.status !== set.status) {
-        command.status = values.status;
-        hasChanges = true;
-      }
-
-      if (!hasChanges) {
-        console.log('No changes detected, closing modal');
-        onFormSubmitSuccess();
-        return;
-      }
-
-      console.log('Updating set with command:', command);
-      const updatedSet = await updateSet(set.id, command);
-      console.log('Set updated:', updatedSet);
-      if (updatedSet) {
-        onFormSubmitSuccess();
-      }
+      // Use React Query mutation
+      await updateMutation.mutateAsync({ 
+        setId: setId, 
+        command 
+      });
+      
+      console.log('Update successful!');
+      
+      // Force refresh queries
+      queryClient.invalidateQueries({ queryKey: [FLASHCARD_SETS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [FLASHCARD_SETS_QUERY_KEY, flashcardSetId] });
+      
+      // Close the modal
+      onCancel?.();
+      toast.success("Zestaw fiszek został zaktualizowany");
     } catch (error) {
       console.error('Failed to update set:', error);
+      toast.error(`Błąd podczas aktualizacji zestawu fiszek: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+
+  const isDisabled = updateMutation.isPending;
 
   return (
     <Form {...form}>
@@ -115,7 +171,8 @@ export function EditSetFormComponent({ set, onFormSubmitSuccess, onCancel }: Edi
                 <Input 
                   placeholder="Wpisz nową nazwę zestawu" 
                   {...field} 
-                  disabled={isMutating}
+                  disabled={isDisabled}
+                  autoFocus
                 />
               </FormControl>
               <FormMessage />
@@ -131,7 +188,7 @@ export function EditSetFormComponent({ set, onFormSubmitSuccess, onCancel }: Edi
               <Select 
                 onValueChange={field.onChange} 
                 defaultValue={field.value}
-                disabled={isMutating}
+                disabled={isDisabled}
               >
                 <FormControl>
                   <SelectTrigger>
@@ -150,31 +207,36 @@ export function EditSetFormComponent({ set, onFormSubmitSuccess, onCancel }: Edi
             </FormItem>
           )}
         />
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Opis (opcjonalnie)</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="Opisz zestaw..."
+                  {...field}
+                  disabled={isDisabled}
+                  value={field.value || ""}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         
-        {apiError && (
-          <p className="text-sm font-medium text-destructive">
-            Błąd API: {apiError.message}
-          </p>
-        )}
-
         <div className="flex justify-end space-x-3 pt-2">
           <Button 
             type="button" 
             variant="outline" 
-            onClick={() => {
-              console.log('Canceling edit form');
-              resetError();
-              onCancel();
-            }} 
-            disabled={isMutating}
+            onClick={onCancel} 
+            disabled={isDisabled}
           >
             Anuluj
           </Button>
-          <Button 
-            type="submit" 
-            disabled={isMutating || !form.formState.isDirty}
-          >
-            {isMutating ? "Zapisywanie..." : "Zapisz zmiany"}
+          <Button type="submit" disabled={isDisabled}>
+            {isDisabled ? "Zapisywanie..." : "Zapisz zmiany"}
           </Button>
         </div>
       </form>

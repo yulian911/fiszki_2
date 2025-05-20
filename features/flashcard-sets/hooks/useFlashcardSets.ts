@@ -149,6 +149,7 @@ export const useFlashcardSetsStore: UseBoundStore<
       set((state) => {
         state.isMutating = false;
         state.error = null;
+        console.log("Full state reset called");
       });
     },
 
