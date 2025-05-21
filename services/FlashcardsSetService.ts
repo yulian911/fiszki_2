@@ -46,7 +46,11 @@ function mapFlashcardsSetToDTO(record: unknown): FlashcardsSetDTO {
     createdAt: item.created_at,
     updatedAt: item.updated_at,
     description: item.description,
-    flashcardCount: item.flashcard_count,
+    flashcardCount:
+      item.flashcard_count ??
+      (Array.isArray(item.flashcards) && item.flashcards.length > 0
+        ? item.flashcards[0].count
+        : 0),
   };
 }
 
@@ -75,14 +79,14 @@ export class FlashcardsSetService {
     // Początkowe zapytanie
     let query = this.supabase
       .from("flashcards_set")
-      .select("*", { count: "exact" })
+      .select("*, flashcards(count)", { count: "exact" })
       .eq("owner_id", userId);
 
     // Dodanie filtrowania po statusie, jeśli podano
     if (status) {
       query = query.eq("status", status);
     }
-    
+
     // Dodanie filtrowania po nazwie, jeśli podano
     if (nameSearch) {
       query = query.ilike("name", `%${nameSearch}%`);
@@ -90,13 +94,13 @@ export class FlashcardsSetService {
 
     // Sortowanie i paginacja: mapujemy sortBy na nazwy kolumn w DB
     const sortColumnMap: Record<string, string> = {
-      name: 'name',
-      createdAt: 'created_at',
-      updatedAt: 'updated_at',
+      name: "name",
+      createdAt: "created_at",
+      updatedAt: "updated_at",
     };
-    const column = sortColumnMap[sortBy] ?? 'created_at';
-    const ascending = sortOrder === 'asc';
-    
+    const column = sortColumnMap[sortBy] ?? "created_at";
+    const ascending = sortOrder === "asc";
+
     const { data, error, count } = await query
       .order(column, { ascending })
       .range(offset, offset + limit - 1);
@@ -240,8 +244,11 @@ export class FlashcardsSetService {
     });
 
     const setDTO = mapFlashcardsSetToDTO(set);
+
     return {
       ...setDTO,
+      // Upewniamy się, że flashcardCount w detail zawiera faktyczną liczbę pobranych fiszek
+      flashcardCount: flashcards.length,
       flashcards,
     };
   }
@@ -268,7 +275,7 @@ export class FlashcardsSetService {
     if (command.status !== undefined) {
       updates.status = command.status;
     }
-    
+
     if (command.description !== undefined) {
       updates.description = command.description;
     }
