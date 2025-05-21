@@ -1,0 +1,220 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# React Query Rules
+
+## Custom Hooks Pattern
+
+Organize React Query hooks by feature and in separate files:
+
+```tsx
+// Use feature-based directory structure
+features/
+  feature-name/
+    api/
+      useGetEntityName.tsx
+      useMutateEntityName.tsx
+      useGetEntityById.tsx
+```
+
+## Query Hooks
+
+Query hooks should follow this pattern:
+
+```tsx
+export const useGetEntities = (params: FilterViewModel) => {
+  const queryKey = ['entity-name', params];
+  
+  return useQuery({
+    queryKey,
+    queryFn: async () => {
+      const response = await api.get('/entity-endpoint', { params });
+      return response.data;
+    },
+    keepPreviousData: true, // Keep previous data while new data is being fetched
+    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
+  });
+};
+```
+
+## Mutation Hooks
+
+Mutation hooks should be grouped by entity and include automatic invalidation:
+
+```tsx
+export const useMutateEntity = () => {
+  const queryClient = useQueryClient();
+  
+  const create = useMutation({
+    mutationFn: (data: CreateEntityCommand) => 
+      api.post('/entity-endpoint', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['entity-name'] });
+      toast.success('Entity created successfully');
+    },
+    onError: (error) => {
+      toast.error('Failed to create entity');
+      console.error(error);
+    },
+  });
+  
+  const update = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateEntityCommand }) => 
+      api.put(`/entity-endpoint/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['entity-name'] });
+      toast.success('Entity updated successfully');
+    },
+    onError: (error) => {
+      toast.error('Failed to update entity');
+      console.error(error);
+    },
+  });
+  
+  const remove = useMutation({
+    mutationFn: (id: string) => 
+      api.delete(`/entity-endpoint/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['entity-name'] });
+      toast.success('Entity deleted successfully');
+    },
+    onError: (error) => {
+      toast.error('Failed to delete entity');
+      console.error(error);
+    },
+  });
+  
+  return { create, update, remove };
+};
+```
+
+## Query Client Provider Setup
+
+Set up the React Query client at the app root with appropriate defaults:
+
+```tsx
+// app/providers.tsx
+'use client';
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { useState } from 'react';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        refetchOnWindowFocus: false,
+        retry: 1,
+        staleTime: 1000 * 60 * 5, // 5 minutes
+      },
+    },
+  }));
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools />}
+    </QueryClientProvider>
+  );
+}
+```
+
+## Optimistic Updates
+
+For better UX, implement optimistic updates when feasible:
+
+```tsx
+const update = useMutation({
+  mutationFn: ({ id, data }: { id: string; data: UpdateEntityCommand }) => 
+    api.put(`/entity-endpoint/${id}`, data),
+  onMutate: async ({ id, data }) => {
+    // Cancel any outgoing refetches for this query
+    await queryClient.cancelQueries({ queryKey: ['entity-name', id] });
+    
+    // Snapshot the previous value
+    const previousData = queryClient.getQueryData(['entity-name', id]);
+    
+    // Optimistically update to the new value
+    queryClient.setQueryData(['entity-name', id], (old) => ({
+      ...old,
+      ...data,
+    }));
+    
+    return { previousData };
+  },
+  onError: (err, variables, context) => {
+    // If mutation fails, roll back to the previous value
+    if (context?.previousData) {
+      queryClient.setQueryData(
+        ['entity-name', variables.id], 
+        context.previousData
+      );
+    }
+    toast.error('Failed to update entity');
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['entity-name'] });
+    toast.success('Entity updated successfully');
+  },
+});
+```
+
+## Next.js Integration
+
+Ensure proper integration with Next.js:
+
+1. Always add the 'use client' directive at the top of components using React Query
+2. Use the Providers wrapper in the root layout
+3. Handle server-side rendering concerns with proper hydration techniques
+
+## Error Handling
+
+Implement consistent error handling:
+
+```tsx
+const { data, error, isLoading, refetch } = useGetEntities(params);
+
+if (isLoading) return <LoadingComponent />;
+if (error) return <ErrorComponent message={error.message} retry={() => refetch()} />;
+```
+
+## Pagination & Filters
+
+For paginated data with filters:
+
+```tsx
+// Query key should include all filter parameters
+const queryKey = ['entity-name', { page, limit, search, sortBy, sortOrder }];
+
+// Keep previous data to prevent layout shifts
+return useQuery({
+  queryKey,
+  queryFn: async () => {
+    const response = await api.get(`/entity-endpoint`, {
+      params: { page, limit, search, sortBy, sortOrder }
+    });
+    return response.data;
+  },
+  keepPreviousData: true,
+});
+```
+
+## Prefetching
+
+Prefetch likely-needed data when appropriate:
+
+```tsx
+// On hover or when near viewport
+const prefetchEntity = (id: string) => {
+  queryClient.prefetchQuery({
+    queryKey: ['entity-name', id],
+    queryFn: () => api.get(`/entity-endpoint/${id}`).then(res => res.data)
+  });
+};
+```
+
+
+

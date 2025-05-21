@@ -100,15 +100,54 @@ export const useUpdateFlashcardSet = () => {
       
       return await response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       // Aktualizuj dane w cache dla tego konkretnego zestawu
       queryClient.setQueryData([FLASHCARD_SETS_QUERY_KEY, data.id], data);
       
-      // Unieważnij wszystkie zapytania związane z listami zestawów
-      queryClient.invalidateQueries({ 
+      // Próba aktualizacji list zestawów w cache
+      try {
+        // Pobierz wszystkie zapytania o listy zestawów
+        const queries = queryClient.getQueriesData({ 
+          queryKey: [FLASHCARD_SETS_QUERY_KEY]
+        });
+        
+        // Aktualizuj wszystkie listy zawierające ten zestaw
+        for (const [queryKey, queryData] of queries) {
+          if (Array.isArray(queryKey) && queryKey.length > 1 && typeof queryKey[1] === 'object') {
+            const currentData = queryData as PaginatedResponse<FlashcardsSetDTO> | undefined;
+            
+            if (currentData && currentData.data) {
+              // Znajdź zestaw i zaktualizuj go
+              const updatedData = {
+                ...currentData,
+                data: currentData.data.map(set => 
+                  set.id === data.id ? data : set
+                )
+              };
+              
+              // Aktualizuj cache
+              queryClient.setQueryData(queryKey, updatedData);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Błąd podczas aktualizacji cache list zestawów:", error);
+      }
+      
+      // Następnie wymuszamy pełne odświeżenie wszystkich zapytań o zestawy
+      await queryClient.invalidateQueries({ 
         queryKey: [FLASHCARD_SETS_QUERY_KEY],
-        predicate: (query) => query.queryKey.length > 1 && typeof query.queryKey[1] === 'object'
+        refetchType: 'all'
       });
+      
+      // Wymuś natychmiastowe odświeżenie
+      const queries = queryClient.getQueriesData({ 
+        queryKey: [FLASHCARD_SETS_QUERY_KEY]
+      });
+      
+      for (const [queryKey] of queries) {
+        await queryClient.refetchQueries({ queryKey, exact: true });
+      }
     },
   });
 };
