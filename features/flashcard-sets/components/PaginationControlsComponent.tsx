@@ -22,18 +22,23 @@ interface PaginationControlsProps {
   onPageChange: (page: number) => void;
   onLimitChange?: (limit: number) => void;
   isLoading?: boolean;
-  // Można dodać opcjonalny prop na dostępne rozmiary strony, jeśli chcemy to konfigurować z zewnątrz
+  /**
+   * Opis encji w mianowniku liczby mnogiej (np. "zestawów" | "fiszek")
+   * Używany w komunikatach UI. Domyślnie "zestawów" dla zgodności wstecz.
+   */
+  entityLabel?: string;
   // availablePageSizes?: number[];
 }
 
-const defaultPageSizes = [10, 20, 30, 50, 100];
+const defaultPageSizes = [5, 10, 20, 30, 50, 100];
 
 export function PaginationControlsComponent({ 
   meta, 
   onPageChange,
   onLimitChange,
   isLoading = false,
-  /*, availablePageSizes = defaultPageSizes */ 
+  entityLabel = "zestawów",
+  /* availablePageSizes = defaultPageSizes */ 
 }: PaginationControlsProps) {
   const { page, limit, total } = meta;
   const totalPages = Math.ceil(total / limit);
@@ -58,7 +63,7 @@ export function PaginationControlsComponent({
     return (
         <div className="flex items-center justify-end space-x-2 py-4">
             <div className="flex-1 text-sm text-muted-foreground">
-                {total === 0 ? "Brak zestawów do wyświetlenia." : `Wyświetlono ${total} z ${total} zestawów.`}
+                {total === 0 ? `Brak ${entityLabel} do wyświetlenia.` : `Wyświetlono ${total} z ${total} ${entityLabel}.`}
             </div>
              {/* Opcjonalnie można pokazać wybór liczby elementów nawet przy jednej stronie, jeśli total > 0 */}
         </div>
@@ -68,7 +73,7 @@ export function PaginationControlsComponent({
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between space-y-2 sm:space-y-0 sm:space-x-2 py-4">
       <div className="text-sm text-muted-foreground">
-        Wyświetlono {Math.min(limit * (page - 1) + 1, total)} - {Math.min(limit * page, total)} z {total} zestawów.
+        Wyświetlono {Math.min(limit * (page - 1) + 1, total)} - {Math.min(limit * page, total)} z {total} {entityLabel}.
       </div>
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-2">

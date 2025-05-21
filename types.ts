@@ -315,3 +315,27 @@ export interface StatsDTO {
   totalCards: number;
   sessionsHistory: SessionHistoryDTO[];
 }
+
+// -----------------------------------------------------------------------------
+// 9. Sharing (Collaborators)
+// -----------------------------------------------------------------------------
+
+/**
+ * DTO współpracownika zestawu fiszek
+ */
+export interface SetCollaboratorDTO {
+  id: string;
+  email: string;
+  role: "viewer" | "editor";
+  invitedAt: string;
+  status: "pending" | "accepted" | "rejected";
+}
+
+/**
+ * Komenda zaproszenia współpracownika do zestawu
+ */
+export interface InviteCollaboratorCommand {
+  setId: string;
+  email: string;
+  role: "viewer" | "editor";
+}
