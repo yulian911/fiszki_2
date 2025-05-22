@@ -6,7 +6,7 @@ import {
   DELETE,
 } from "../../app/api/flashcards-sets/[setId]/route";
 import * as supabaseClient from "../../utils/supabase/client";
-import { FlashcardsSetService } from "../../services/FlashcardsSetService";
+import { FlashcardsSetService } from "../../features/flashcard-sets/services/FlashcardsSetService";
 
 /**
  * Plik z testami jednostkowymi API zestawów fiszek.

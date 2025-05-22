@@ -257,7 +257,7 @@
   { "rating": "easy" }
 
 
-  // or "hard", "medium"
+  // wartości zgodne z enum session_card_rating: "again", "hard", "good", "easy"
   ```
 
 - Response (200 OK): next card or session summary

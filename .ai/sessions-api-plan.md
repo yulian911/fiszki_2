@@ -4,7 +4,7 @@
 
 ## 1. Przegląd punktu końcowego
 
-Zestaw endpointów umożliwiających rozpoczęcie, ocenę i zakończenie sesji powtórek (SRS) na podstawie zestawów fiszek. Dane sesji przechowywane w tabeli `Sessions` (szczegóły w `@db-plan.md`).
+Zestaw endpointów umożliwiających rozpoczęcie, ocenę i zakończenie sesji powtórek (SRS) na podstawie zestawów fiszek. Dane sesji przechowywane w tabeli `Sessions` i `session_cards` (szczegóły w `@db-plan.md`).
 
 ## 2. Szczegóły żądania
 
@@ -34,6 +34,7 @@ Zestaw endpointów umożliwiających rozpoczęcie, ocenę i zakończenie sesji p
   ```json
   { "rating": "easy" }
   ```
+  Dozwolone wartości dla rating: "again", "hard", "good", "easy"
 - Nagłówki:
   - `Authorization: Bearer <token>`
 - Odpowiedź (200 OK): `EvaluateCardResponseDTO`
@@ -42,23 +43,32 @@ Zestaw endpointów umożliwiających rozpoczęcie, ocenę i zakończenie sesji p
 
 #### 2.3 End Session
 
-- Metoda HTTP: DELETE
-- Ścieżka: `/sessions/{sessionId}`
+- Metoda HTTP: PATCH (zmiana z DELETE)
+- Ścieżka: `/sessions/{sessionId}/end`
 - Parametry ścieżki:
   - `sessionId` (UUID)
 - Nagłówki:
   - `Authorization: Bearer <token>`
-- Odpowiedź (204 No Content)
+- Odpowiedź (200 OK): `EndSessionResponseDTO`
+  ```json
+  {
+    "sessionId": "uuid-sesji",
+    "startedAt": "2024-05-19T10:15:00Z",
+    "endedAt": "2024-05-19T10:22:30Z", 
+    "durationSeconds": 450,
+    "cardsReviewed": 15,
+    "score": 85
+  }
+  ```
 
 ## 3. Wykorzystywane typy
 
-- `StartSessionCommand`, `SessionCardDTO`, `StartSessionResponseDTO`, `EvaluateCardCommand`, `EvaluateCardResponseDTO`, `SessionSummaryDTO` (z `@types.ts`)
+- `StartSessionCommand`, `SessionCardDTO`, `StartSessionResponseDTO`, `EvaluateCardCommand`, `EvaluateCardResponseDTO`, `SessionSummaryDTO`, `EndSessionResponseDTO` (z `@types.ts`)
 
 ## 4. Szczegóły odpowiedzi
 
 - 201 Created: wygenerowano listę kart do sesji
-- 200 OK: zwrócono kolejną kartę lub podsumowanie
-- 204 No Content: zakończono sesję
+- 200 OK: zwrócono kolejną kartę, podsumowanie lub dane o zakończonej sesji
 - Ciała odpowiedzi zgodne z interfejsami z `@types.ts`
 
 ## 5. Przepływ danych
@@ -67,11 +77,11 @@ Zestaw endpointów umożliwiających rozpoczęcie, ocenę i zakończenie sesji p
 2. Walidacja wejścia Zodem (`@backend.mdc`).
 3. Wywołanie `SessionsService.start(command)`:
    - Pobranie odpowiednich fiszek z `Flashcards` z uwzględnieniem filtrów i limitu,
-   - Utworzenie rekordu `Sessions` i powiązanie do wybranych fiszek.
+   - Utworzenie rekordu `Sessions` i powiązanie do wybranych fiszek w `session_cards`.
 4. Klient ocenia kartę przez `SessionsService.evaluate(sessionId, cardId, rating)`:
-   - Aktualizacja postępu w tabeli `Sessions`,
+   - Aktualizacja postępu w tabeli `session_cards` (rating, status),
    - Wyznaczenie następnej fiszki lub budowa podsumowania.
-5. Klient kończy sesję: `SessionsService.end(sessionId)` usuwa wpis lub oznacza zakończenie.
+5. Klient kończy sesję: `SessionsService.end(sessionId)` aktualizuje wpis (dodaje `ended_at` i oblicza `duration_seconds`).
 
 ## 6. Względy bezpieczeństwa
 
@@ -90,15 +100,26 @@ Zestaw endpointów umożliwiających rozpoczęcie, ocenę i zakończenie sesji p
 ## 8. Rozważania dotyczące wydajności
 
 - Indeks na `user_id`, `flashcards_set_id` w tabeli `Sessions`.
+- Indeks na `session_id` i `flashcard_id` w tabeli `session_cards`.
 - Pre-fetch fiszek i cache w pamięci sesji aplikacji.
 
 ## 9. Kroki implementacji
 
-1. Utworzyć schematy Zod w `features/schemas/session.ts`.
+1. Utworzyć schematy Zod w `features/schemas/session.ts` i `common.ts`.
 2. Zaimplementować `SessionsService` z metodami: `start`, `evaluate`, `end`.
-3. Dodać API routes w `app/sessions/*`.
+3. Dodać API routes w `app/api/sessions/*`.
 4. Skonfigurować Supabase client w warstwie service.
 5. Zapewnić logikę transakcyjną dla oceny kart.
-6. Napisać testy jednostkowe i integracyjne.
-7. Zaktualizować dokumentację OpenAPI.
-8. Przeprowadzić code review i wdrożenie.
+6. Rozszerzyć bazę danych o pole `ended_at` i `duration_seconds` w tabeli `sessions`.
+7. Napisać testy jednostkowe i integracyjne.
+8. Zaktualizować dokumentację OpenAPI.
+9. Przeprowadzić code review i wdrożenie.
+
+## 10. Uwagi
+
+Aktualizacja migracji w bazie danych wprowadziła:
+1. Tabelę `session_cards` do przechowywania relacji między sesjami i fiszkami
+2. Typ wyliczeniowy `session_card_rating` z wartościami ('again', 'hard', 'good', 'easy')
+3. Konieczność śledzenia czasu trwania sesji poprzez pola `ended_at` i `duration_seconds`
+
+Dla spójności w całej aplikacji, rating karty zmieniono z ('easy', 'medium', 'hard') na ('again', 'hard', 'good', 'easy'), co lepiej odzwierciedla standardy algorytmów SRS.

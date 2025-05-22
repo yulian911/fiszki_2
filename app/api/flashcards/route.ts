@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { FlashcardsService } from "@/features/services/flashcardsService";
+import { FlashcardsService } from "@/features/ai-generator/services/flashcardsService";
 import { ListFlashcardsQuerySchema, CreateFlashcardCommandSchema } from "@/features/schemas/flashcard";
 
 /**

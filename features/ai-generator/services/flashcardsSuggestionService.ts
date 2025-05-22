@@ -11,7 +11,7 @@ import {
   getSuggestion,
   setSuggestion,
   deleteSuggestion,
-} from "@/features/services/suggestionsCache";
+} from "@/features/ai-generator/services/suggestionsCache";
 
 // Configure OpenAI client with OpenRouter base URL
 const openrouterApiKey = process.env.OPENROUTER_API_KEY;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { GenerateSuggestionsCommandSchema } from "@/features/schemas/flashcardsSuggestion";
-import { FlashcardsSuggestionService } from "@/features/services/flashcardsSuggestionService";
+import { FlashcardsSuggestionService } from "@/features/ai-generator/services/flashcardsSuggestionService";
 import { createClient } from "@/utils/supabase/server";
 
 export async function POST(request: Request) {

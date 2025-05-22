@@ -5,7 +5,7 @@ import {
   UpdateFlashcardsSetCommand,
   PaginatedResponse,
   FlashcardsSetStatus,
-} from "../types";
+} from "../../../types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Typy pomocnicze dla danych z bazy danych

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "../../../utils/supabase/server";
 import { z } from "zod";
-import { FlashcardsSetService } from "../../../services/FlashcardsSetService";
+import { FlashcardsSetService } from "../../../features/flashcard-sets/services/FlashcardsSetService";
 import {
   flashcardsSetListQuerySchema,
   createFlashcardsSetSchema,

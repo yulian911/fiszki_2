@@ -2,8 +2,14 @@ Frontend - Next.js z React dla komponentów interaktywnych:
 - Next.js do wydajnych stron i aplikacji 
 - React 19 zapewni interaktywność tam, gdzie jest potrzebna
 - TypeScript 5 dla statycznego typowania kodu i lepszego wsparcia IDE
+- Zod do walidacji schematów danych i bezpiecznego parsowania
+- react-hook-form do zarządzania formularzami i integracji z walidacją Zod
 - Tailwind 4 pozwala na wygodne stylowanie aplikacji
 - Shadcn/ui zapewnia bibliotekę dostępnych komponentów React, na których oprzemy UI
+- React Query do pobierania, cache'owania i mutacji danych z API
+- nuqs do synchronizacji parametrów URL z stanem aplikacji (filtry, modale)
+- react-hot-toast do wyświetlania notyfikacji toast
+- use-debounce (hook) do opóźniania zapytań przy wyszukiwaniu
 
 Backend - Supabase jako kompleksowe rozwiązanie backendowe:
 - Zapewnia bazę danych PostgreSQL
@@ -16,5 +22,5 @@ AI - Komunikacja z modelami przez usługę Openrouter.ai:
 - Pozwala na ustawianie limitów finansowych na klucze API
 
 CI/CD i Hosting:
-- Github Actions do tworzenia pipeline’ów CI/CD
+- Github Actions do tworzenia pipeline'ów CI/CD
 - DigitalOcean do hostowania aplikacji za pośrednictwem obrazu docker
