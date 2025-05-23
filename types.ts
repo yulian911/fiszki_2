@@ -256,11 +256,12 @@ export interface StartSessionCommand {
 }
 
 /**
- * DTO pojedynczej karty w sesji (tylko id i pytanie)
+ * DTO pojedynczej karty w sesji (id, pytanie i odpowiedź)
  */
 export interface SessionCardDTO {
   id: string;
   question: string;
+  answer: string;
 }
 
 /**

@@ -41,16 +41,14 @@ export const useSession = (sessionId: string) => {
   // Effect to update viewModel when session data is fetched
   useEffect(() => {
     if (getSessionQuery.data) {
-      const contextCards: SessionContextCardDTO[] = getSessionQuery.data.cards.map((card: GlobalSessionCardDTO) => ({
-        ...card, // Spread existing GlobalSessionCardDTO properties
-        // answer is implicitly undefined here as GlobalSessionCardDTO doesn't have it, and SessionContextCardDTO has it as optional
-      }));
       setViewModel((prev) => ({
         ...prev,
-        cards: contextCards,
+        cards: getSessionQuery.data.cards, // Direct assignment since types are now the same
         isLoading: false,
-        startTime: new Date(), // Reset start time when new session data arrives
-        sessionDuration: 0, // Reset duration
+        // Only set startTime if it's not already set (first time loading)
+        startTime: prev.cards.length === 0 ? new Date() : prev.startTime,
+        // Only reset duration if we're loading cards for the first time
+        sessionDuration: prev.cards.length === 0 ? 0 : prev.sessionDuration,
       }));
     }
     if (getSessionQuery.isLoading) {
@@ -81,10 +79,8 @@ export const useSession = (sessionId: string) => {
         setViewModel(prev => ({ 
             ...prev, 
             isAnswerVisible: true, 
-            currentAnswer: currentCard.answer // Access optional answer directly
+            currentAnswer: currentCard.answer // Now answer is available in the card
         }));
-        // If currentCard.answer is undefined, currentAnswer will be set to undefined.
-        // UI (AnswerDisplay) should handle undefined/empty answer.
     } else {
         toast.error("No current card to show answer for.");
     }

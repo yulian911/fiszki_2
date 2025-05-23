@@ -154,4 +154,172 @@ pozostają zasadniczo bez zmian, z możliwością wyświetlania dodatkowych info
 10. **Refaktoryzacja i dokumentacja**
     - Ostateczna refaktoryzacja kodu, aktualizacja dokumentacji (README, komentarze) oraz weryfikacja kompletności wdrożenia.
 
+## 12. Zmiany i naprawy wprowadzone podczas implementacji
+
+### 12.1. Struktura bazy danych
+**Problem**: Brakujące kolumny i tabele w bazie danych.
+**Rozwiązanie**: 
+- Dodano migrację `20240320120000_add_session_cards_structure.sql` z:
+  - Enum `session_card_rating` ('again', 'hard', 'good', 'easy')
+  - Enum `session_status` ('in_progress', 'completed', 'abandoned')
+  - Tabela `session_cards` z relacjami do sessions i flashcards
+  - Brakujące kolumny w tabeli `sessions`: `status`, `ended_at`, `duration_seconds`
+  - Polityki RLS i indeksy
+
+### 12.2. SessionStarterModal - funkcjonalności zaawansowane
+**Rozszerzenia**: 
+- **Wyświetlanie liczby fiszek**: Badge z liczbą kart przy każdym zestawie
+- **Walidacja pustych zestawów**: Ostrzeżenia i blokada gdy zestaw nie ma fiszek
+- **Inteligentne limity**: Ostrzeżenia gdy limit > dostępne karty, automatyczne dostosowanie
+- **API endpoints**: Dodano `/api/tags` dla listy tagów
+- **Shuffle option**: Checkbox do losowego tasowania fiszek
+
+### 12.3. Naprawy kompatybilności Next.js 15
+**Problem**: `params` jest teraz Promise w Next.js 15.
+**Rozwiązanie**:
+```typescript
+// PRZED (błędne)
+const { sessionId } = params;
+
+// PO (poprawne)  
+const { sessionId } = use(params);
+// + import { use } from 'react';
+// + params: Promise<{sessionId: string}>
+```
+
+### 12.4. Problem z polami answer w kartach
+**Problem**: API nie zwracało pola `answer`, powodując "Loading answer...".
+**Rozwiązanie**:
+- Dodano pole `answer` do globalnego `SessionCardDTO` w `types.ts`
+- Zaktualizowano wszystkie API endpoints do zwracania `answer`
+- Uproszczono `SessionContextCardDTO` do aliasu globalnego typu
+- Naprawiono import w `SessionsService.ts`
+
+### 12.5. Problem z timerem sesji
+**Problem**: Timer resetował się do 00:00 przy każdym pobraniu danych.
+**Rozwiązanie**:
+```typescript
+// PRZED (błędne)
+startTime: new Date(), // Resetował za każdym razem
+
+// PO (poprawne)
+startTime: prev.cards.length === 0 ? new Date() : prev.startTime
+```
+
+### 12.6. Problem z routingiem i Supabase client
+**Problemy**:
+- Błędne użycie browser client w server context
+- Brakująca zmienna `NEXT_PUBLIC_API_URL`
+- Brakujący GET endpoint dla sesji
+
+**Rozwiązania**:
+- Zmiana na server client w API routes
+- Użycie względnych URLi (`/api/...`) zamiast zmiennej środowiskowej
+- Dodano `GET /api/sessions/[sessionId]` endpoint
+- Naprawiono przekierowanie "Start New Session" na `/protected`
+
+### 12.7. Shuffle algorithm
+**Implementacja**: Algorytm Fisher-Yates w `SessionsService.start()`:
+```typescript
+if (shuffle) {
+  for (let i = filteredCards.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [filteredCards[i], filteredCards[j]] = [filteredCards[j], filteredCards[i]];
+  }
+}
+```
+
+### 12.8. Schema walidacji
+**Uzupełnienia**:
+- Dodano pole `shuffle: z.boolean().optional().default(false)` do `startSessionSchema`
+- Zaktualizowano `StartSessionInput` type
+- Obsługa shuffle w modal i backend
+
+### 12.9. UX improvements
+**Dodane funkcjonalności**:
+- Visual feedback dla pustych zestawów (czerwone badge)
+- Proactive warnings przed błędami
+- Smart defaults i graceful handling błędów
+- Clear error messaging z dokładnymi komunikatami
+
+### 12.10. TypeScript fixes
+**Naprawy typów**:
+- Unifikacja `SessionCardDTO` vs `SessionContextCardDTO`
+- Poprawne importy między lokalnymi i globalnymi typami
+- Explicit typing dla mutation callbacks
+- Proper Promise handling w API routes
+
+### 12.11. Flip Card Animation
+**Requirement**: Dodanie animacji przewracania karty przy kliknięciu "Show Answer".
+
+**Implementacja 3D Flip Animation**:
+- **FlashcardView refaktor**: Przeprojektowanie struktury na 3D flip card
+- **Dual-sided layout**: Front (Question) i Back (Answer) jako absolutnie pozycjonowane karty
+- **CSS transforms**: Użycie `rotateY(180deg)` dla 3D flip effect
+- **State management**: `isFlipping` i `showBackSide` do kontroli animacji
+
+**Tailwind Config Extensions** (`tailwind.config.ts`):
+```typescript
+plugins: [
+  require("tailwindcss-animate"),
+  function({ addUtilities }: any) {
+    const newUtilities = {
+      '.preserve-3d': { 'transform-style': 'preserve-3d' },
+      '.perspective-1000': { 'perspective': '1000px' },
+      '.backface-hidden': { 'backface-visibility': 'hidden' },
+      '.rotate-y-180': { 'transform': 'rotateY(180deg)' },
+    }
+    addUtilities(newUtilities)
+  }
+]
+```
+
+**Custom CSS** (`app/globals.css`):
+```css
+.flashcard-content {
+  font-size: 1.125rem !important; /* identyczne 18px */
+  line-height: 1.75 !important;   /* identyczne leading-relaxed */
+  text-align: center !important;
+  font-weight: 400 !important;
+}
+```
+
+**Problem: Różne rozmiary kart**:
+- **Issue**: Question i Answer karty miały różne rozmiary w zależności od zawartości
+- **Root cause**: Flexbox `flex-1` powodował dynamiczne rozmiary
+- **Debug solution**: JavaScript debug script do analizy rzeczywistych rozmiarów DOM
+
+**Debug Script** (`debug-flashcard.js`):
+- Analiza rozmiarów kontenerów i sekcji
+- Sprawdzanie custom CSS aplikacji
+- Monitoring stanu animacji
+- Porównanie wymiarów front vs back card
+
+**Rozwiązanie - Stałe rozmiary**:
+```typescript
+// PRZED: Dynamiczne rozmiary z flex-1
+<div className="flex-1 flex items-center justify-center">
+
+// PO: Stałe rozmiary w pikselach  
+<div className="h-48 flex items-center justify-center"> // 192px content
+```
+
+**Final Structure**:
+- **Container**: `w-96 h-80` (384px × 320px) - stałe rozmiary
+- **Header**: `h-12` (48px) - "Question"/"Answer" 
+- **Content**: `h-48` (192px) - tekst z overflow scroll
+- **Footer**: `h-16` (64px) - przycisk/placeholder
+
+**Animation Timing**:
+- **Duration**: 700ms transition
+- **Easing**: `ease-in-out`
+- **State sync**: useEffect synchronizuje `isAnswerVisible` z flip state
+
+**Rezultat**:
+- ✅ Smooth 3D flip animation
+- ✅ Identyczne rozmiary kart (matematycznie potwierdzone)
+- ✅ Responsywny design z stałymi proporcjami
+- ✅ Overflow handling dla długich tekstów
+- ✅ Perfect visual continuity podczas animacji
+
 Taki zaktualizowany plan implementacji uwzględnia dynamiczny wybór parametrów sesji oraz opcjonalne losowe tasowanie fiszek, co pozwala lepiej dostosować proces nauki do potrzeb użytkownika. 

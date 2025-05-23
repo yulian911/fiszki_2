@@ -67,3 +67,31 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom styles for flashcard content - IDENTICAL styling */
+@layer components {
+  .flashcard-content {
+    font-size: 1.125rem !important; /* text-lg = 18px */
+    line-height: 1.75 !important; /* leading-relaxed = 1.75 */
+    text-align: center !important;
+    font-weight: 400 !important; /* normal font weight */
+    color: inherit !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .flashcard-content * {
+    font-size: inherit !important;
+    line-height: inherit !important;
+    font-weight: inherit !important;
+    margin: 0.25rem 0 !important; /* małe marginesy dla <p>, <div> etc */
+  }
+  
+  .flashcard-content p,
+  .flashcard-content div,
+  .flashcard-content span {
+    font-size: 1.125rem !important;
+    line-height: 1.75 !important;
+    text-align: center !important;
+  }
+}

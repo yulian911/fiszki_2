@@ -6,15 +6,6 @@ import {
 } from '@/types'; // Assuming @/types is the path to the global types.ts
 import { EndSessionResponseDTO } from '../types'; // For session-specific types like EndSessionResponseDTO
 
-// Helper to get base API URL from environment variables
-const getApiBaseUrl = () => {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (!baseUrl) {
-    throw new Error('NEXT_PUBLIC_API_URL is not defined');
-  }
-  return baseUrl;
-};
-
 /**
  * Fetches initial session data.
  * This corresponds to an internal or protected API endpoint that prepares and returns session details.
@@ -24,7 +15,7 @@ const getApiBaseUrl = () => {
 export async function fetchSession(
   sessionId: string
 ): Promise<StartSessionResponseDTO> {
-  const response = await fetch(`${getApiBaseUrl()}/sessions/${sessionId}`);
+  const response = await fetch(`/api/sessions/${sessionId}`);
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(
@@ -45,7 +36,7 @@ export async function evaluateCard(
   command: EvaluateCardCommand
 ): Promise<EvaluateCardResponseDTO> {
   const response = await fetch(
-    `${getApiBaseUrl()}/sessions/${sessionId}/cards/${cardId}/evaluate`,
+    `/api/sessions/${sessionId}/cards/${cardId}/evaluate`,
     {
       method: 'PATCH',
       headers: {
@@ -77,7 +68,7 @@ export async function endSession(
   sessionId: string,
   durationSeconds?: number
 ): Promise<EndSessionResponseDTO | undefined> {
-  let url = `${getApiBaseUrl()}/sessions/${sessionId}`;
+  let url = `/api/sessions/${sessionId}`;
   if (durationSeconds !== undefined) {
     url += `?durationSeconds=${durationSeconds}`;
   }

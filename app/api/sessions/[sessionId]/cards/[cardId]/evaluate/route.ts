@@ -9,11 +9,11 @@ import { createClient } from '@/utils/supabase/server';
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { sessionId: string; cardId: string } }
+  { params }: { params: Promise<{ sessionId: string; cardId: string }> }
 ) {
   try {
     // Extract path parameters
-    const { sessionId, cardId } = params;
+    const { sessionId, cardId } = await params;
     
     // Parse and validate request body
     const body = await request.json();

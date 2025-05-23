@@ -6,10 +6,8 @@ export type { SessionSummaryDTO };
 // Define a session-specific CardRating based on the plan: again, hard, good, easy
 export type SessionContextCardRating = "again" | "hard" | "good" | "easy";
 
-// Extend SessionCardDTO for session context to include an optional answer
-export interface SessionContextCardDTO extends GlobalSessionCardDTO {
-  answer?: string; // Answer might not be available for all cards initially or fetched on demand
-}
+// SessionContextCardDTO is now the same as GlobalSessionCardDTO since it includes answer
+export type SessionContextCardDTO = GlobalSessionCardDTO;
 
 // Re-export GlobalCardRating if it's needed elsewhere with its original definition from this module
 // For session context, SessionContextCardRating should be used primarily.

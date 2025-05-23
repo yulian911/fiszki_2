@@ -2,6 +2,7 @@
 
 import { QuestionDisplayProps } from '../types';
 
+// Component for displaying question text with HTML support
 export function QuestionDisplay({ question }: QuestionDisplayProps) {
   return (
     <div>

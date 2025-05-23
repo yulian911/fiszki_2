@@ -59,6 +59,9 @@ const config = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      perspective: {
+        '1000': '1000px',
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
@@ -75,7 +78,26 @@ const config = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    function({ addUtilities }: any) {
+      const newUtilities = {
+        '.preserve-3d': {
+          'transform-style': 'preserve-3d',
+        },
+        '.perspective-1000': {
+          'perspective': '1000px',
+        },
+        '.backface-hidden': {
+          'backface-visibility': 'hidden',
+        },
+        '.rotate-y-180': {
+          'transform': 'rotateY(180deg)',
+        },
+      }
+      addUtilities(newUtilities)
+    }
+  ],
 } satisfies Config;
 
 export default config;

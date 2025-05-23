@@ -5,7 +5,7 @@ import Link from 'next/link';
 
 import withAuth from "@/lib/withAuth";
 import { AIGeneratorButton } from "@/features/ai-generator";
-import SessionStarterButton from "@/features/sessions/components/SessionStarterButton";
+import { SessionStarterModal } from "@/features/sessions/components";
 
 function ProtectedPage() {
   return (
@@ -19,7 +19,7 @@ function ProtectedPage() {
         <div className="bg-accent text-sm p-3 px-5 rounded-md text-foreground flex gap-3 items-center">
           <AIGeneratorButton />
         </div>
-        <SessionStarterButton />
+        <SessionStarterModal />
       </div>
     </div>
   );

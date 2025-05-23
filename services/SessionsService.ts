@@ -1,23 +1,21 @@
-import { createClient } from '@/utils/supabase/client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { 
   StartSessionInput, 
   EvaluateCardInput, 
-  SessionCardDTO, 
   SessionSummaryDTO 
 } from '@/features/schemas/session';
+import { SessionCardDTO } from '@/types';
 
 // Define card type interfaces
 interface FlashcardWithTags {
   id: string;
   question: string;
-  tags?: { name: string }[];
 }
 
 interface SessionCard {
   session_id: string;
   flashcard_id: string;
-  status: string;
+  sequence_no: number;
 }
 
 interface CardRating {
@@ -40,17 +38,17 @@ interface SessionCardWithFlashcard {
 export class SessionsService {
   private supabase: SupabaseClient;
 
-  constructor(supabaseClient?: SupabaseClient) {
-    this.supabase = supabaseClient || createClient();
+  constructor(supabaseClient: SupabaseClient) {
+    this.supabase = supabaseClient;
   }
 
   /**
    * Start a new SRS session
-   * @param command Command with flashcardsSetId, tags, and limit
+   * @param command Command with flashcardsSetId, tags, limit, and shuffle
    * @returns Session ID and cards for the session
    */
   async start(command: StartSessionInput) {
-    const { flashcardsSetId, tags, limit } = command;
+    const { flashcardsSetId, tags, limit, shuffle = false } = command;
     
     // Get user ID from auth context
     const { data: { user } } = await this.supabase.auth.getUser();
@@ -61,10 +59,9 @@ export class SessionsService {
     // Fetch cards for the session based on tags and limit
     const { data: cards, error: fetchError } = await this.supabase
       .from('flashcards')
-      .select('id, question, tags!inner(*)')
+      .select('id, question, answer')
       .eq('flashcards_set_id', flashcardsSetId)
-      .order('created_at')
-      .limit(limit);
+      .order('created_at');
       
     if (fetchError) {
       throw new Error(`Failed to fetch cards: ${fetchError.message}`);
@@ -75,12 +72,26 @@ export class SessionsService {
     }
     
     // Filter by tags if specified
-    let filteredCards: FlashcardWithTags[] = cards;
+    let filteredCards: any[] = cards;
     if (tags.length > 0) {
-      filteredCards = cards.filter((card: FlashcardWithTags) => {
-        const cardTags = card.tags?.map((tag: { name: string }) => tag.name) || [];
-        return tags.some((tag: string) => cardTags.includes(tag));
-      });
+      // TODO: Tags filtering is not implemented yet
+      throw new Error('Tag filtering is not implemented yet. Please start session without tags.');
+    }
+
+    if (filteredCards.length === 0) {
+      throw new Error('No cards found matching the specified tags');
+    }
+    
+    // Limit the number of cards to the requested limit or available cards, whichever is smaller
+    const actualLimit = Math.min(limit, filteredCards.length);
+    filteredCards = filteredCards.slice(0, actualLimit);
+    
+    // Shuffle cards if requested using Fisher-Yates algorithm
+    if (shuffle) {
+      for (let i = filteredCards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [filteredCards[i], filteredCards[j]] = [filteredCards[j], filteredCards[i]];
+      }
     }
     
     // Create session record
@@ -100,10 +111,10 @@ export class SessionsService {
     }
     
     // Link cards to session
-    const sessionCards: SessionCard[] = filteredCards.map((card: FlashcardWithTags) => ({
+    const sessionCards = filteredCards.map((card: any, index: number) => ({
       session_id: session.id,
       flashcard_id: card.id,
-      status: 'pending',
+      sequence_no: index + 1, // kolejność wylosowania/tasowania
     }));
     
     const { error: linkError } = await this.supabase
@@ -117,9 +128,10 @@ export class SessionsService {
     // Format response
     return {
       sessionId: session.id,
-      cards: filteredCards.map((card: FlashcardWithTags) => ({
+      cards: filteredCards.map((card: any) => ({
         id: card.id,
         question: card.question,
+        answer: card.answer,
       })),
     };
   }
@@ -152,27 +164,27 @@ export class SessionsService {
       throw new Error('Session not found or unauthorized');
     }
     
-    // Update the card status
+    // Update the card rating
     const { error: updateError } = await this.supabase
       .from('session_cards')
       .update({
-        status: 'completed',
         rating: rating,
-        completed_at: new Date().toISOString(),
+        reviewed_at: new Date().toISOString(),
       })
       .eq('session_id', sessionId)
       .eq('flashcard_id', cardId);
       
     if (updateError) {
-      throw new Error(`Failed to update card status: ${updateError.message}`);
+      throw new Error(`Failed to update card rating: ${updateError.message}`);
     }
     
-    // Get next card by fetching the flashcard directly
+    // Get next card by checking for cards without rating
     const { data: pendingSessionCards, error: pendingError } = await this.supabase
       .from('session_cards')
       .select('flashcard_id')
       .eq('session_id', sessionId)
-      .eq('status', 'pending')
+      .is('rating', null)
+      .order('sequence_no')
       .limit(1);
       
     if (pendingError) {
@@ -185,7 +197,7 @@ export class SessionsService {
       
       const { data: nextCard, error: cardError } = await this.supabase
         .from('flashcards')
-        .select('id, question')
+        .select('id, question, answer')
         .eq('id', nextCardId)
         .single();
         
@@ -196,6 +208,7 @@ export class SessionsService {
       return {
         id: nextCard.id,
         question: nextCard.question,
+        answer: nextCard.answer,
       };
     }
     
@@ -204,7 +217,7 @@ export class SessionsService {
       .from('session_cards')
       .select('rating')
       .eq('session_id', sessionId)
-      .eq('status', 'completed');
+      .not('rating', 'is', null);
       
     if (completedError) {
       throw new Error(`Failed to get completed cards: ${completedError.message}`);
@@ -228,7 +241,7 @@ export class SessionsService {
       .update({
         status: 'completed',
         score: Math.round(score),
-        completed_at: new Date().toISOString(),
+        ended_at: new Date().toISOString(),
       })
       .eq('id', sessionId);
     
@@ -270,7 +283,7 @@ export class SessionsService {
       .from('sessions')
       .update({
         status: 'abandoned',
-        completed_at: new Date().toISOString(),
+        ended_at: new Date().toISOString(),
       })
       .eq('id', sessionId);
       

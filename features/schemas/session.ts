@@ -7,6 +7,7 @@ export const startSessionSchema = z.object({
   flashcardsSetId: z.string().uuid(),
   tags: z.array(z.string()),
   limit: z.number().int().positive().max(100),
+  shuffle: z.boolean().optional().default(false),
 });
 
 // Schema for EvaluateCardCommand

@@ -7,4 +7,5 @@ export * from './QuestionDisplay';
 export * from './ShowAnswerButton';
 export * from './AnswerDisplay';
 export * from './RatingButtons';
-export * from './SessionSummary'; 
+export * from './SessionSummary';
+export { default as SessionStarterModal } from './SessionStarterModal'; 

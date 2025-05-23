@@ -90,9 +90,8 @@ export const SessionPage: React.FC = () => {
   // Handle navigation for summary actions
   const handleGoHome = () => router.push('/');
   const handleRestartSession = () => {
-    // This might involve creating a new session via API and redirecting, or just redirecting to a setup page
-    // For now, a simple redirect to a placeholder or home
-    router.push('/start-session'); // Placeholder for session start page
+    // Redirect to protected page where SessionStarterModal is available
+    router.push('/protected');
   };
 
   // Initial loading state for the whole page before session data arrives
