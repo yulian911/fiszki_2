@@ -1,28 +1,40 @@
-import { createClient } from "@/utils/supabase/server";
-import { InfoIcon } from "lucide-react";
-import { redirect } from "next/navigation";
-import Link from 'next/link';
 
+
+import React, { useState, useEffect } from "react";
 import withAuth from "@/lib/withAuth";
-import { AIGeneratorButton } from "@/features/ai-generator";
 import { SessionStarterModal } from "@/features/sessions/components";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
-function ProtectedPage() {
+import { AIGeneratorButton } from "@/features/ai-generator";
+
+const ProtectedPage: React.FC = () => {
+
+
+
   return (
-    <div className="flex-1 w-full flex flex-col gap-12">
-      <div className="w-full">
-        <div className="bg-accent text-sm p-3 px-5 rounded-md text-foreground flex gap-3 items-center">
-          <InfoIcon size="16" strokeWidth={2} />
-          This is a protected page that you can only see as an authenticated
-          user
+    <div className="p-4">
+      <h1 className="text-2xl font-bold mb-6">Protected Dashboard</h1>
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="p-4 border rounded shadow">
+          <p className="text-sm text-gray-500">Fiszki do powtórki dzisiaj:</p>
+          <p className="text-xl font-semibold">"TEST"</p>
         </div>
-        <div className="bg-accent text-sm p-3 px-5 rounded-md text-foreground flex gap-3 items-center">
-          <AIGeneratorButton />
+        <div className="p-4 border rounded shadow">
+          <p className="text-sm text-gray-500">Łączna liczba fiszek:</p>
+          <p className="text-xl font-semibold">"TEST"</p>
         </div>
+      </div>
+      <div className="flex gap-4">
+        {/* Using SessionStarterModal for 'Rozpocznij naukę' action */}
         <SessionStarterModal />
+        <AIGeneratorButton />
+        <Link href="/protected/sets" aria-label="Zestawy fiszek">
+          <Button variant="outline">Zestawy fiszek</Button>
+        </Link>
       </div>
     </div>
   );
-}
+};
 
 export default withAuth(ProtectedPage);

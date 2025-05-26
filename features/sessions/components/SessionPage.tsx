@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation'; // For accessing sessionId and navigation
+import { useRouter } from 'next/navigation'; // For navigation
 import { useSession } from '../hooks'; // Now imports from hooks/index.ts
 import { 
   SessionProgress, 
@@ -25,21 +25,23 @@ const SHORTCUT_RATE_HARD: SessionContextCardRating = 'hard';
 const SHORTCUT_RATE_GOOD: SessionContextCardRating = 'good';
 const SHORTCUT_RATE_EASY: SessionContextCardRating = 'easy';
 
-export const SessionPage: React.FC = () => {
-  const router = useRouter();
-  const params = useParams();
-  const sessionId = typeof params.sessionId === 'string' ? params.sessionId : '';
+interface SessionPageProps {
+  sessionId: string;
+}
 
-  // Validate UUID format
-  if (sessionId && !uuidValidate(sessionId)) {
+export const SessionPage: React.FC<SessionPageProps> = ({ sessionId }) => {
+  const router = useRouter();
+
+  // Validate UUID format (defensive programming)
+  if (!sessionId || !uuidValidate(sessionId)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
         <Alert variant="destructive" className="max-w-md">
           <Terminal className="h-4 w-4" />
           <AlertTitle>Invalid Session ID</AlertTitle>
           <AlertDescription>
-            The session ID in the URL is not valid. Please check the link or start a new session.
-            <Button onClick={() => router.push('/')} className="mt-4 w-full">Go to Homepage</Button>
+            The session ID is not valid. Please check the link or start a new session.
+            <Button onClick={() => router.push('/protected')} className="mt-4 w-full">Go to Protected Page</Button>
           </AlertDescription>
         </Alert>
       </div>
@@ -64,6 +66,9 @@ export const SessionPage: React.FC = () => {
     toggleTimer,
     error,
     currentAnswer, // Get currentAnswer from useSession to pass to FlashcardView
+    flashcardsSetId,
+    tags,
+    sessionCreatedAt,
   } = useSession(sessionId);
 
   // Keyboard shortcuts setup
@@ -97,15 +102,19 @@ export const SessionPage: React.FC = () => {
   // Initial loading state for the whole page before session data arrives
   if (isLoading && !currentCardData && !isCompleted && !error) {
     return (
-      <div className="container mx-auto p-4 space-y-6">
-        <Skeleton className="h-8 w-1/4" />
-        <Skeleton className="h-4 w-1/2" />
-        <Skeleton className="h-64 w-full" />
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="w-full max-w-3xl mx-auto p-4 flex flex-col space-y-6 min-w-0">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-1/4 min-w-[100px]" />
+          <Skeleton className="h-4 w-1/2 min-w-[150px]" />
+        </div>
+        <div className="space-y-4">
+          <Skeleton className="h-64 sm:h-72 md:h-80 w-80 sm:w-96 md:w-[28rem] lg:w-[32rem] mx-auto" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
+          </div>
         </div>
       </div>
     );
@@ -129,10 +138,19 @@ export const SessionPage: React.FC = () => {
   }
 
   // Session Summary View
-  if (isCompleted && summary) {
+  if (isCompleted) {
+    // Create mock summary if not available from natural completion
+    const mockSummary = summary || {
+      sessionId,
+      flashcardsSetId: flashcardsSetId,
+      tags: tags,
+      score: 0, // Default score for manually ended session
+      createdAt: sessionCreatedAt || startTime.toISOString(),
+    };
+
     return (
       <SessionSummary
-        summary={summary}
+        summary={mockSummary}
         endSessionResult={endSessionResult}
         sessionDuration={sessionDuration}
         onHome={handleGoHome}
@@ -156,26 +174,10 @@ export const SessionPage: React.FC = () => {
         </div>
     );
   }
-  
-  if (!currentCardData && isLoading) { // Still loading the very first card
-      return (
-        <div className="container mx-auto p-4 space-y-6">
-          <Skeleton className="h-8 w-1/4" />
-          <Skeleton className="h-4 w-1/2" />
-          <Skeleton className="h-64 w-full" />
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-          </div>
-        </div>
-      );
-  }
 
   // Render active session if card data is available
   return (
-    <div className="container mx-auto p-4 flex flex-col max-w-3xl min-h-screen">
+    <div className="w-full max-w-3xl mx-auto p-4 flex flex-col min-h-screen">
       <header className="mb-6">
         <SessionProgress currentIndex={currentCardIndex + 1} totalCards={totalCards} />
         <SessionTimer startTime={startTime} isRunning={!isPaused && !isCompleted} />

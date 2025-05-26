@@ -19,5 +19,5 @@ export default function SessionRoute({ params }: SessionPageProps) {
     return notFound();
   }
 
-  return <SessionPage />;
+  return <SessionPage sessionId={sessionId} />;
 } 

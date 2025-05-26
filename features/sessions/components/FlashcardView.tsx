@@ -38,7 +38,7 @@ export function FlashcardView({
     <div className="perspective-1000 w-full flex justify-center">
       <div 
         className={`
-          relative w-96 h-80 preserve-3d transition-transform duration-700 ease-in-out
+          relative w-80 sm:w-96 md:w-[28rem] lg:w-[32rem] h-64 sm:h-72 md:h-80 preserve-3d transition-transform duration-700 ease-in-out
           ${isAnswerVisible ? 'rotate-y-180' : ''}
         `}
       >
@@ -53,7 +53,7 @@ export function FlashcardView({
             </div>
             
             {/* Content area - stała wysokość, wypełnia przestrzeń */}
-            <div className="h-48 flex items-center justify-center overflow-hidden">
+            <div className="h-32 sm:h-40 md:h-48 flex items-center justify-center overflow-hidden">
               <div className="w-full max-h-full overflow-y-auto">
                 <div 
                   className="flashcard-content"
@@ -80,7 +80,7 @@ export function FlashcardView({
             </div>
             
             {/* Content area - stała wysokość, wypełnia przestrzeń */}
-            <div className="h-48 flex flex-col overflow-hidden">
+            <div className="h-32 sm:h-40 md:h-48 flex flex-col overflow-hidden">
               {/* Small question reminder */}
               <div className="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
                 <div className="text-sm text-muted-foreground line-clamp-1">{card.question}</div>

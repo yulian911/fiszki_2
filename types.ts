@@ -270,6 +270,10 @@ export interface SessionCardDTO {
 export interface StartSessionResponseDTO {
   sessionId: string;
   cards: SessionCardDTO[];
+  // Session metadata for summary
+  flashcardsSetId: string;
+  tags: string[];
+  createdAt: string;
 }
 
 /**

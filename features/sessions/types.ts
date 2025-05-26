@@ -38,6 +38,10 @@ export interface SessionViewModel {
   startTime: Date;
   sessionDuration: number; // time in seconds
   isPaused: boolean;
+  // Add session metadata for summary
+  flashcardsSetId: string;
+  tags: string[];
+  sessionCreatedAt: string;
 }
 
 export interface FlashcardViewModel {

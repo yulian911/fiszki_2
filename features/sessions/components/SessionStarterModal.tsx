@@ -138,14 +138,21 @@ export default function SessionStarterModal({ triggerButton }: SessionStarterMod
       const data = await response.json();
       const sessionId = data.sessionId;
       
-      setOpen(false);
+      // Don't reset form or close modal immediately to maintain loading state
+      // Close modal only after successful redirect
       router.push(`/protected/sessions/${sessionId}`);
       toast.success("Session started successfully!");
+      
+      // Reset after a brief delay to ensure navigation starts
+      setTimeout(() => {
+        setOpen(false);
+        resetForm();
+        setLoading(false);
+      }, 100);
     } catch (error) {
       console.error("Error starting session:", error);
       toast.error(error instanceof Error ? error.message : "Failed to start session");
-    } finally {
-      setLoading(false);
+      setLoading(false); // Reset loading only on error
     }
   };
 
@@ -171,7 +178,7 @@ export default function SessionStarterModal({ triggerButton }: SessionStarterMod
       <DialogTrigger asChild>
         {triggerButton || defaultTrigger}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="w-5 h-5" />

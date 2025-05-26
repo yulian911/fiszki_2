@@ -62,7 +62,11 @@ export async function GET(
     
     return NextResponse.json({
       sessionId,
-      cards
+      cards,
+      // Add session metadata for summary
+      flashcardsSetId: sessionData.flashcards_set_id,
+      tags: sessionData.tags || [],
+      createdAt: sessionData.created_at,
     });
   } catch (error) {
     console.error('Error fetching session:', error);

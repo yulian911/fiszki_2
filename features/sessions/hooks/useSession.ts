@@ -29,6 +29,10 @@ export const useSession = (sessionId: string) => {
     currentAnswer: undefined, // From plan
     summary: undefined, // From plan
     endSessionResult: undefined, // From plan
+    // Add session metadata
+    flashcardsSetId: '',
+    tags: [],
+    sessionCreatedAt: '',
   }));
 
   // API Hooks
@@ -49,6 +53,10 @@ export const useSession = (sessionId: string) => {
         startTime: prev.cards.length === 0 ? new Date() : prev.startTime,
         // Only reset duration if we're loading cards for the first time
         sessionDuration: prev.cards.length === 0 ? 0 : prev.sessionDuration,
+        // Set session metadata
+        flashcardsSetId: getSessionQuery.data.flashcardsSetId || '',
+        tags: getSessionQuery.data.tags || [],
+        sessionCreatedAt: getSessionQuery.data.createdAt || '',
       }));
     }
     if (getSessionQuery.isLoading) {
