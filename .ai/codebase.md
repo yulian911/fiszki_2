@@ -1,0 +1,1 @@
+Rozpocznij od  przeszukania zawartosc projektu w poszukiwaniu (np.testów jednostkowych)
