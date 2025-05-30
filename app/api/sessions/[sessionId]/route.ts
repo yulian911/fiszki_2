@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SessionsService } from '@/services/SessionsService';
+
 import { createClient } from '@/utils/supabase/server';
+import { SessionsService } from '@/features/sessions/services/SessionService';
 
 /**
  * GET /api/sessions/[sessionId]

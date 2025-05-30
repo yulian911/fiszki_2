@@ -1,0 +1,186 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Integracja Supabase Auth z Next.js
+
+Ten przewodnik opisuje, jak zaimplementować uwierzytelnianie przy użyciu Supabase w aplikacji Next.js ze wsparciem dla Server-Side Rendering (SSR). Przykłady w tym dokumencie bazują na poniższych fragmentach kodu:
+
+- `lib/withAuth.tsx` – wyższy rząd komponent (HOC) do ochrony stron
+- Pliki w katalogu `utils/supabase` (m.in. `server.ts`, `client.ts`, `middleware.ts`, `check-env-vars.ts`)
+- Strony autoryzacyjne w katalogu `app/(auth-pages)` oraz dodatkowe strony w `app/auth`
+- Chronione trasy w katalogu `app/protected`
+
+## Wymagania
+
+1. Zainstaluj paczki:
+   ```bash
+   npm install @supabase/ssr @supabase/supabase-js
+   ```
+
+2. Skonfiguruj zmienne środowiskowe w pliku `.env`:
+   ```env
+   SUPABASE_URL=your_project_url
+   SUPABASE_KEY=your_anon_key
+   ```
+   Upewnij się, że plik `.env.example` zawiera aktualne wartości.
+
+## Konfiguracja Typów
+
+Aby uzyskać lepszą obsługę typów, utwórz lub zaktualizuj plik `src/env.d.ts`:
+
+```typescript
+/// <reference types="next" />
+
+declare namespace NodeJS {
+  interface ProcessEnv {
+    SUPABASE_URL: string;
+    SUPABASE_KEY: string;
+  }
+}
+```
+
+## Inicjalizacja Klienta Supabase
+
+Stwórz lub zmodyfikuj plik `utils/supabase/server.ts`, aby utworzyć instancję klienta Supabase:
+
+```typescript
+import { createServerClient, type CookieOptionsWithName } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+
+export const cookieOptions: CookieOptionsWithName = {
+  path: '/',
+  secure: true,
+  httpOnly: true,
+  sameSite: 'lax',
+};
+
+function parseCookieHeader(cookieHeader: string): { name: string; value: string }[] {
+  return cookieHeader.split(';').map((cookie) => {
+    const [name, ...rest] = cookie.trim().split('=');
+    return { name, value: rest.join('=') };
+  });
+}
+
+export const createClient = () => {
+  // Pobierz ciasteczka z Next.js
+  const cookieHeader = cookies().toString();
+
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_KEY!,
+    {
+      cookieOptions,
+      cookies: {
+        getAll() {
+          return parseCookieHeader(cookieHeader);
+        },
+        setAll(cookiesToSet) {
+          // W Next.js zarządzanie ciasteczkami odbywa się poprzez odpowiedź HTTP.
+          // Zaimplementuj logikę ustawiania ciasteczek zgodnie z Twoimi potrzebami.
+          cookiesToSet.forEach(({ name, value, options }) => {
+            // Przykładowa implementacja:
+            // setCookie(name, value, options);
+          });
+        },
+      },
+    }
+  );
+  return supabase;
+};
+```
+
+## Middleware i Ochrona Tras
+
+W Next.js zabezpieczenie stron można osiągnąć poprzez wykorzystanie wyższego rzędu komponentu (HOC). Przykładowa implementacja znajduje się w pliku `lib/withAuth.tsx`:
+
+```tsx
+import { createClient } from '@/utils/supabase/server';
+import { redirect } from 'next/navigation';
+
+export default function withAuth(Component: React.ComponentType) {
+  return async function WithAuth(props: any) {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return redirect('/sign-in');
+    }
+
+    return <Component {...props} user={user} />;
+  };
+}
+```
+
+Aby chronić stronę, opakuj swój komponent w `withAuth`:
+
+```tsx
+import withAuth from '@/lib/withAuth';
+
+function ProtectedPage({ user }) {
+  return (
+    <div>
+      <h1>Chroniona Strona</h1>
+      <p>Witaj, {user.email}!</p>
+    </div>
+  );
+}
+
+export default withAuth(ProtectedPage);
+```
+
+## API do Autentykacji
+
+Stwórz API routes dla logowania, rejestracji i wylogowania, umieszczając je np. w folderze `app/api/auth`:
+
+### Przykład logowania (`app/api/auth/login/route.ts`):
+
+```typescript
+import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
+
+export async function POST(request: Request) {
+  const { email, password } = await request.json();
+
+  const supabase = createClient();
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ user: data.user });
+}
+```
+
+Podobnie możesz stworzyć endpointy dla rejestracji (`register/route.ts`) oraz wylogowania (`logout/route.ts`).
+
+## Weryfikacja SSR
+
+Upewnij się, że strony wymagające autoryzacji są renderowane po stronie serwera. W Next.js 13 możesz tego dokonać poprzez:
+
+- Użycie asynchronicznych komponentów w katalogu `app`.
+- Wykorzystanie funkcji takich jak `getServerSideProps` (w przypadku używania starszego podejścia) lub middleware.
+
+## Najlepsze Praktyki Bezpieczeństwa
+
+- Ustaw prawidłowe opcje dla ciasteczek (`httpOnly`, `secure`, `sameSite`).
+- Nigdy nie eksponuj kluczy Supabase w komponentach klienckich.
+- Waliduj dane wejściowe na serwerze.
+- Zawsze sprawdzaj, czy użytkownik jest zalogowany przed wykonaniem operacji wymagających autoryzacji.
+
+## Pułapki
+
+1. NIE używaj pojedynczych metod zarządzania ciasteczkami (np. `get`, `set`, `remove`) – korzystaj wyłącznie z metod `getAll` i `setAll`.
+2. NIE stosuj paczki `@supabase/auth-helpers` – używaj `@supabase/ssr`.
+3. Pamiętaj o wywołaniu metody `supabase.auth.getUser()` przed wykonywaniem operacji, aby poprawnie pobrać sesję użytkownika.
+4. Upewnij się, że wszystkie strony autoryzacyjne (w `app/(auth-pages)` oraz `app/auth`) identycznie korzystają z mechanizmu uwierzytelniania.
+
+---
+
+Ten dokument został dostosowany do Next.js, zgodnie z dostarczonymi plikami i strukturą projektu.
+

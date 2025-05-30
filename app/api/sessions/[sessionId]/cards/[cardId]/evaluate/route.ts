@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { evaluateCardSchema } from '@/features/schemas/session';
-import { SessionsService } from '@/services/SessionsService';
+
 import { createClient } from '@/utils/supabase/server';
+import { SessionsService } from '@/features/sessions/services/SessionService';
 
 /**
  * PATCH /api/sessions/[sessionId]/cards/[cardId]/evaluate
