@@ -11,7 +11,9 @@
     "test:e2e:auth": "playwright test auth.spec.ts",
     "test:e2e:protected": "playwright test protected.spec.ts",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:standalone": "npx playwright test e2e/standalone.spec.ts --config=e2e/standalone.config.ts"
+    "test:e2e:standalone": "npx playwright test e2e/standalone.spec.ts --config=e2e/standalone.config.ts",
+    "setup:test-user": "node scripts/create-test-user.js",
+    "test:e2e:setup": "npm run setup:test-user && npm run test:e2e:auth"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
@@ -65,7 +67,8 @@
     "@types/react": "^19.0.2",
     "@types/react-dom": "19.0.2",
     "@types/uuid": "^10.0.0",
-    "babel-jest": "^30.0.0-beta.3",
+    "babel-jest": "^29.7.0",
+    "dotenv": "^16.5.0",
     "identity-obj-proxy": "^3.0.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^30.0.0-beta.3",

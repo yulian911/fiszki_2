@@ -13,15 +13,11 @@ export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
 
   if (!email || !password) {
-    return encodedRedirect(
-      "error",
-      "/sign-up",
-      "Email and password are required"
-    );
+    return encodedRedirect("error", "/sign-up", "Email i hasło są wymagane");
   }
 
   if (password !== passwordConfirmation) {
-    return encodedRedirect("error", "/sign-up", "Passwords do not match");
+    return encodedRedirect("error", "/sign-up", "Hasła nie pasują");
   }
 
   const { error } = await supabase.auth.signUp({
@@ -34,14 +30,9 @@ export const signUpAction = async (formData: FormData) => {
 
   if (error) {
     console.error(error.code + " " + error.message);
-    return encodedRedirect("error", "/sign-up", error.message);
-  } else {
-    return encodedRedirect(
-      "success",
-      "/sign-up",
-      "Thanks for signing up! Please check your email for a verification link."
-    );
+    return encodedRedirect("error", "/sign-up", "Email już istnieje");
   }
+  return redirect("/protected");
 };
 
 export const signInAction = async (formData: FormData) => {
@@ -55,7 +46,11 @@ export const signInAction = async (formData: FormData) => {
   });
 
   if (error) {
-    return encodedRedirect("error", "/sign-in", error.message);
+    return encodedRedirect(
+      "error",
+      "/sign-in",
+      "Nieprawidłowy email lub hasło"
+    );
   }
 
   return redirect("/protected");

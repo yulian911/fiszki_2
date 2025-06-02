@@ -5,7 +5,6 @@ import useEditModalSet from "../hooks/useEditModal";
 import { EditSetFormComponent } from "./EditSetFormComponent";
 import { ConfirmDeleteModalComponent } from "./ConfirmDeleteModalComponent";
 import { CreateSetFormComponent } from "./CreateSetFormComponent";
-import { useEffect, useState } from "react";
 
 // type Props = {
 //   //   onOpenChange?: () => void;
@@ -14,19 +13,20 @@ import { useEffect, useState } from "react";
 // };
 
 export default function OpenEditDeleteFlashcardSetModal() {
-  const { 
-    flashcardSetEditId, 
-    deleteFlashcardSetId, 
-    deleteClose, 
-    open, 
-    isOpen, 
-    close, 
-    closeEdit 
+  const {
+    flashcardSetEditId,
+    deleteFlashcardSetId,
+    deleteClose,
+    open,
+    isOpen,
+    close,
+    closeEdit,
   } = useEditModalSet();
-  
+
   // Określa, czy modal powinien być otwarty
-  const isModalOpen = !!isOpen || !!flashcardSetEditId || !!deleteFlashcardSetId;
-  
+  const isModalOpen =
+    !!isOpen || !!flashcardSetEditId || !!deleteFlashcardSetId;
+
   // Obsługa zamykania modalu
   const handleModalClose = () => {
     if (isOpen) {
@@ -38,18 +38,19 @@ export default function OpenEditDeleteFlashcardSetModal() {
     if (deleteFlashcardSetId) {
       deleteClose();
     }
-  }
-  
+  };
+
   // Określenie treści modalu na podstawie aktualnego stanu
   let title = "Utwórz nowy zestaw fiszek";
-  let description = "Wprowadź nazwę dla swojego nowego zestawu. Po zapisaniu będziesz mógł dodać do niego fiszki.";
+  let description =
+    "Wprowadź nazwę dla swojego nowego zestawu. Po zapisaniu będziesz mógł dodać do niego fiszki.";
   let content = null;
-  
+
   if (flashcardSetEditId) {
     title = "Edytuj zestaw fiszek";
     description = "Edytuj nazwę swojego zestawu fiszek";
     content = (
-      <EditSetFormComponent 
+      <EditSetFormComponent
         flashcardSetId={flashcardSetEditId}
         onCancel={closeEdit}
       />
@@ -58,17 +59,13 @@ export default function OpenEditDeleteFlashcardSetModal() {
     title = "Usuń zestaw fiszek";
     description = "Czy na pewno chcesz usunąć ten zestaw fiszek?";
     content = (
-      <ConfirmDeleteModalComponent 
+      <ConfirmDeleteModalComponent
         deleteFlashcardSetId={deleteFlashcardSetId}
         onCancel={deleteClose}
       />
     );
   } else if (isOpen) {
-    content = (
-      <CreateSetFormComponent 
-        onCancel={close}
-      />
-    );
+    content = <CreateSetFormComponent onCancel={close} />;
   }
 
   // Jeśli nie ma treści, nie renderuj modalu wcale
@@ -77,8 +74,8 @@ export default function OpenEditDeleteFlashcardSetModal() {
   }
 
   return (
-    <ResponsiveModal 
-      open={isModalOpen} 
+    <ResponsiveModal
+      open={isModalOpen}
       title={title}
       description={description}
       onOpenChange={handleModalClose}

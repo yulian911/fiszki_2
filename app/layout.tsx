@@ -43,7 +43,7 @@ export default function RootLayout({
                       <DeployButton />
                     </div>
                   </div>
-                  {!hasEnvVars ? <EnvVarWarning /> : <HeaderAuth />}
+                  {!hasEnvVars ? <EnvVarWarning /> : null}
                 </div>
               </nav>
               <div className="flex flex-col gap-20 max-w-5xl p-4">
