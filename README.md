@@ -7,6 +7,11 @@ Frontend: Next.js, React, TypeScript 5, Tailwind CSS 4, and Shadcn/ui for access
 Backend: Supabase, offering PostgreSQL database and built-in authentication.
 AI Integration: openrouter.ai which enables communication with multiple AI models (e.g., OpenAI, Anthropic, Google).
 CI/CD & Hosting: Github Actions for CI/CD pipelines and DigitalOcean for hosting using Docker.
+
++ Testing:
++ - Testy jednostkowe: Wykorzystano Jest oraz React Testing Library.
++ - Testy end-to-end: Wykorzystano Playwright (preferowany ze względu na wsparcie dla TypeScript i automatyczne oczekiwanie) lub Cypress.
+
 Getting Started Locally
 Prerequisites
 Node.js (LTS version recommended)
