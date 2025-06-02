@@ -39,7 +39,7 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testMatch: /example\.spec\.ts/,
+      testMatch: /(example|auth|protected)\.spec\.ts/,
     },
     // Standalone tests that don't require a web server
     {
