@@ -2,6 +2,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { useDeleteFlashcard } from "@/features/flashcard-sets/api/useMutateFlashcards";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface ConfirmDeleteFlashcardComponentProps {
   flashcardId: string;
@@ -10,12 +11,14 @@ interface ConfirmDeleteFlashcardComponentProps {
 
 export const ConfirmDeleteFlashcardComponent: React.FC<ConfirmDeleteFlashcardComponentProps> = ({ flashcardId, onCancel }) => {
   const { mutate: deleteFlashcard, isPending } = useDeleteFlashcard();
+  const router = useRouter();
 
   const handleDelete = () => {
     deleteFlashcard(flashcardId, {
       onSuccess: () => {
         toast.success("Fiszka usunięta");
         onCancel();
+        router.refresh();
       },
       onError: (e) => {
         toast.error(`Błąd: ${e.message}`);

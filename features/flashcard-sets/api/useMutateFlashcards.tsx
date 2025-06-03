@@ -89,6 +89,7 @@ export const useDeleteFlashcard = () => {
     onSuccess: (_, flashcardId) => {
       // Note: We don't have setId here easily but invalidating all flashcards queries is okay
       queryClient.invalidateQueries({ queryKey: [FLASHCARDS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [FLASHCARDS_QUERY_KEY, flashcardId] });
     },
   });
 }; 

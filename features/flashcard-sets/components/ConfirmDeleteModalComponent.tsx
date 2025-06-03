@@ -16,6 +16,7 @@ import { AlertTriangleIcon } from 'lucide-react';
 import { useGetFlashcardSetById } from "../api/useGetFlashcardSets";
 import { useDeleteFlashcardSet } from "../api/useMutateFlashcardSets";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 type Props = {
   deleteFlashcardSetId: string;
@@ -25,6 +26,7 @@ type Props = {
 export function ConfirmDeleteModalComponent({ deleteFlashcardSetId, onCancel }: Props) {
  
   const { mutate: deleteSet, isPending: isDeleting } = useDeleteFlashcardSet();
+  const router = useRouter();
 
   const handleDelete = () => {
     if (!deleteFlashcardSetId) return;
@@ -33,6 +35,7 @@ export function ConfirmDeleteModalComponent({ deleteFlashcardSetId, onCancel }: 
       onSuccess: () => {
         toast.success("Zestaw fiszek został usunięty");
         onCancel(); // Zamknij modal po sukcesie
+       
       },
       onError: (error) => {
         toast.error(`Błąd podczas usuwania zestawu fiszek: ${error.message}`);
