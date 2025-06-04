@@ -7,10 +7,26 @@ config({ path: ".env.local" });
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+console.log("Sprawdzanie zmiennych środowiskowych...");
+console.log("SUPABASE_URL:", supabaseUrl ? "✓ Ustawione" : "✗ Brak");
+console.log("SUPABASE_ANON_KEY:", supabaseAnonKey ? "✓ Ustawione" : "✗ Brak");
+
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    "Brak zmiennych środowiskowych SUPABASE_URL lub SUPABASE_ANON_KEY"
-  );
+  console.error("❌ Brak wymaganych zmiennych środowiskowych:");
+  console.error("- NEXT_PUBLIC_SUPABASE_URL");
+  console.error("- NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  console.error("\nUpewnij się, że secrets są poprawnie ustawione w GitHub.");
+  process.exit(1);
+}
+
+// Sprawdź czy URL wygląda poprawnie
+if (
+  !supabaseUrl.startsWith("https://") ||
+  !supabaseUrl.includes(".supabase.co")
+) {
+  console.error("❌ NEXT_PUBLIC_SUPABASE_URL wygląda niepoprawnie:");
+  console.error("Otrzymano:", supabaseUrl);
+  console.error("Oczekiwano format: https://xxxxx.supabase.co");
   process.exit(1);
 }
 
