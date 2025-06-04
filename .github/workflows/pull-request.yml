@@ -4,6 +4,9 @@ on:
   pull_request:
     branches:
       - main
+  push: # Dodaj to żeby testować
+    branches:
+      - main
 
 jobs:
   lint:
