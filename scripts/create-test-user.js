@@ -1,5 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
-import { config } from "dotenv";
+const { createClient } = require("@supabase/supabase-js");
+const { config } = require("dotenv");
 
 // Załaduj zmienne środowiskowe
 config({ path: ".env.local" });
