@@ -61,10 +61,8 @@ jobs:
           node-version: "20.x"
       - name: Instalacja zależności
         run: npm ci
-      - name: Install Playwright deps and browsers
-        uses: microsoft/playwright-github-action@v1
-        with:
-          install-deps: true
+      - name: Instalacja Playwright i zależności systemowych
+        run: npx playwright install --with-deps
       - name: Stwórz użytkownika testowego
         run: npm run setup:test-user
       - name: Uruchom testy e2e
@@ -91,7 +89,7 @@ jobs:
       - name: Dodaj komentarz do PR
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.TOKEN }}
           script: |
             const pr = context.payload.pull_request;
             if (!pr) {
