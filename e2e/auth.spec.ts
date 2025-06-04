@@ -33,9 +33,11 @@ test.describe("Authentication", () => {
     await page.getByLabel(/Potwierdź hasło|Powtórz hasło/).fill("Test@1234");
     await page.getByRole("button", { name: /Zarejestruj/i }).click();
 
-    // Verify error message
+    // Verify error message - target the specific error div in the form
     await expect(
-      page.getByText(/email już istnieje|konto już istnieje/i)
+      page.locator("div.text-red-500.mt-4.p-2.bg-red-50", {
+        hasText: /email już istnieje|konto już istnieje/i,
+      })
     ).toBeVisible();
   });
 
