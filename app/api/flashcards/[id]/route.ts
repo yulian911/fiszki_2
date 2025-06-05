@@ -1,19 +1,23 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { FlashcardsService } from "@/features/ai-generator/services/flashcardsService";
-import { FlashcardDTOSchema, UpdateFlashcardCommandSchema } from "@/features/schemas/flashcard";
+import {
+  FlashcardDTOSchema,
+  UpdateFlashcardCommandSchema,
+} from "@/features/schemas/flashcard";
 
 /**
  * GET /api/flashcards/:id
  * Retrieves a single flashcard by ID
  */
 export async function GET(
-  request: Request,
-  { params }: { params: { id: string } },
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const resolvedParams = await params;
+    const { id } = resolvedParams;
     // Validate ID format
     const validatedId = z.string().uuid().parse(id);
 
@@ -22,21 +26,15 @@ export async function GET(
     return NextResponse.json(validated, { status: 200 });
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.issues },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: error.issues }, { status: 400 });
     }
     if (error.message === "Flashcard not found") {
       return NextResponse.json(
         { error: "Flashcard not found" },
-        { status: 404 },
+        { status: 404 }
       );
     }
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
@@ -45,11 +43,12 @@ export async function GET(
  * Updates a flashcard by ID
  */
 export async function PUT(
-  request: Request,
-  { params }: { params: { id: string } },
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const validatedId = z.string().uuid().parse(params.id);
+    const resolvedParams = await params;
+    const validatedId = z.string().uuid().parse(resolvedParams.id);
     const body = await request.json();
     const command = UpdateFlashcardCommandSchema.parse(body);
     const updated = await FlashcardsService.update(validatedId, command);
@@ -60,7 +59,10 @@ export async function PUT(
       return NextResponse.json({ error: error.issues }, { status: 400 });
     }
     if (error.message === "Flashcard not found") {
-      return NextResponse.json({ error: "Flashcard not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Flashcard not found" },
+        { status: 404 }
+      );
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -71,11 +73,12 @@ export async function PUT(
  * Deletes a flashcard by ID
  */
 export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } },
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = z.string().uuid().parse(params.id);
+    const resolvedParams = await params;
+    const id = z.string().uuid().parse(resolvedParams.id);
     await FlashcardsService.delete(id);
     return new NextResponse(null, { status: 204 });
   } catch (error: any) {
@@ -83,8 +86,11 @@ export async function DELETE(
       return NextResponse.json({ error: error.issues }, { status: 400 });
     }
     if (error.message === "Flashcard not found") {
-      return NextResponse.json({ error: "Flashcard not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Flashcard not found" },
+        { status: 404 }
+      );
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-} 
+}

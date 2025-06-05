@@ -1,21 +1,30 @@
-import { NextResponse } from "next/server";
-import { EditSuggestionCommandSchema, SuggestionIdParamSchema } from "@/features/schemas/flashcardsSuggestion";
+import { NextRequest, NextResponse } from "next/server";
+import {
+  EditSuggestionCommandSchema,
+  SuggestionIdParamSchema,
+} from "@/features/schemas/flashcardsSuggestion";
 import { FlashcardsSuggestionService } from "@/features/ai-generator/services/flashcardsSuggestionService";
 import { createClient } from "@/utils/supabase/server";
 
 export async function PUT(
-  request: Request,
-  { params: paramsPromise }: { params: { suggestionId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ suggestionId: string }> }
 ) {
-  console.log("Received paramsPromise:", paramsPromise);
+  console.log("PUT Received params (Promise):", params);
   try {
-    const params = await paramsPromise;
-    console.log("Resolved params (after await):", params);
+    const resolvedParams = await params;
+    console.log("PUT Resolved params (after await):", resolvedParams);
 
-    const paramParseResult = SuggestionIdParamSchema.safeParse(params);
+    const paramParseResult = SuggestionIdParamSchema.safeParse(resolvedParams);
     if (!paramParseResult.success) {
-      console.error("Error parsing suggestionId params:", paramParseResult.error);
-      return NextResponse.json({ error: paramParseResult.error.format() }, { status: 400 });
+      console.error(
+        "PUT Error parsing suggestionId params:",
+        paramParseResult.error
+      );
+      return NextResponse.json(
+        { error: paramParseResult.error.format() },
+        { status: 400 }
+      );
     }
     const { suggestionId } = paramParseResult.data;
 
@@ -27,20 +36,32 @@ export async function PUT(
       parsedBody = JSON.parse(rawBody);
     } catch (e: any) {
       console.error("Error parsing request body as JSON:", e.message);
-      return NextResponse.json({ error: "Invalid JSON format in request body." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid JSON format in request body." },
+        { status: 400 }
+      );
     }
-    
+
     console.log("Parsed request body:", parsedBody);
 
     const bodyParseResult = EditSuggestionCommandSchema.safeParse(parsedBody);
     if (!bodyParseResult.success) {
-      console.error("Error parsing request body with Zod:", bodyParseResult.error);
-      return NextResponse.json({ error: bodyParseResult.error.format() }, { status: 400 });
+      console.error(
+        "Error parsing request body with Zod:",
+        bodyParseResult.error
+      );
+      return NextResponse.json(
+        { error: bodyParseResult.error.format() },
+        { status: 400 }
+      );
     }
     const validatedBody = bodyParseResult.data;
 
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -50,7 +71,10 @@ export async function PUT(
     );
     return NextResponse.json(updated, { status: 200 });
   } catch (err: any) {
-    console.error("Error in PUT /api/flashcards-suggestions/[suggestionId]:", err);
+    console.error(
+      "Error in PUT /api/flashcards-suggestions/[suggestionId]:",
+      err
+    );
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-} 
+}
