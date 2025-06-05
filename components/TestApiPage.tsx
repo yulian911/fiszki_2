@@ -34,7 +34,7 @@ export default function TestApiPage() {
     };
 
     checkAuth();
-  }, []);
+  }, [supabase.auth]);
 
   // Logowanie użytkownika
   const handleLogin = async (e: React.FormEvent) => {

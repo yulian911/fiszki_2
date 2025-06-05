@@ -13,19 +13,20 @@ import {
   deleteSuggestion,
 } from "@/features/ai-generator/services/suggestionsCache";
 
-// Configure OpenAI client with OpenRouter base URL
-const openrouterApiKey = process.env.OPENROUTER_API_KEY;
-if (!openrouterApiKey) {
-  throw new Error("Missing Openrouter API key");
-}
-const openai = new OpenAI({
-  apiKey: openrouterApiKey,
-  baseURL: "https://openrouter.ai/api/v1",
-});
-
 // Cache moved to suggestionsCache module
 
 export class FlashcardsSuggestionService {
+  private static getOpenAIClient(): OpenAI {
+    const openrouterApiKey = process.env.OPENROUTER_API_KEY;
+    if (!openrouterApiKey) {
+      throw new Error("Missing Openrouter API key");
+    }
+    return new OpenAI({
+      apiKey: openrouterApiKey,
+      baseURL: "https://openrouter.ai/api/v1",
+    });
+  }
+
   /**
    * Generates AI suggestions for given text and caches them in memory
    */
@@ -34,6 +35,8 @@ export class FlashcardsSuggestionService {
     if (!text) {
       throw new Error("Text is required");
     }
+
+    const openai = this.getOpenAIClient();
 
     // Call Openrouter AI service to generate suggestions
     const response = await openai.completions.create({
