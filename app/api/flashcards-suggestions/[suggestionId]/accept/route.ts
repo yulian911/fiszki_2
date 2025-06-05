@@ -8,9 +8,8 @@ import { createClient } from "@/utils/supabase/server";
 
 export async function POST(
   request: NextRequest,
-  context: { params: { suggestionId: string } }
+  { params }: { params: { suggestionId: string } }
 ) {
-  const params = context.params;
   console.log("ACCEPT Received params:", params);
   try {
     const paramParseResult = SuggestionIdParamSchema.safeParse(params);
