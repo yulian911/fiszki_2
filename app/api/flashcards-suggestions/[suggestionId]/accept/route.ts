@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   AcceptSuggestionCommandSchema,
   SuggestionIdParamSchema,
@@ -7,7 +7,7 @@ import { FlashcardsSuggestionService } from "@/features/ai-generator/services/fl
 import { createClient } from "@/utils/supabase/server";
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   context: { params: { suggestionId: string } }
 ) {
   const params = context.params;
