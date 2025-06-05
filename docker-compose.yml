@@ -1,0 +1,39 @@
+# Używamy stabilnej wersji składni Docker Compose
+version: "3.9"
+
+services:
+  # Definicja serwisu dla aplikacji
+  app:
+    # Nazwa obrazu, który zostanie zbudowany.
+    # Można przekazać tag przez zmienną środowiskową TAG, np. TAG=v1.0.0 docker-compose up
+    image: fiszki-app:${TAG:-latest}
+
+    # Konfiguracja budowania obrazu z lokalnego Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # Nazwa kontenera, która będzie widoczna w systemie Docker
+    container_name: fiszki-container
+
+    # Polityka restartu kontenera
+    # 'unless-stopped' - restartuje kontener zawsze, chyba że został jawnie zatrzymany
+    restart: unless-stopped
+
+    # Wczytanie zmiennych środowiskowych z pliku .env
+    # Upewnij się, że plik .env istnieje w tym samym katalogu
+    env_file:
+      - .env
+
+    # Przekierowanie portów [PORT_HOSTA:PORT_KONTENERA]
+    ports:
+      - "40310:40310"
+
+    # Definicja Healthcheck, spójna z tą w Dockerfile.
+    # Docker Compose będzie monitorować stan aplikacji.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:40310/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

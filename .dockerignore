@@ -1,0 +1,32 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Next.js build artifacts
+.next
+next-env.d.ts
+
+# Test results
+coverage
+.nyc_output
+
+# Local environment
+.env
+.env*.local
+*.log
+
+# Git
+.git
+.gitignore
+
+# Editor
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Markdown files (if not needed in image)
+*.md 

@@ -27,7 +27,7 @@ AI - Komunikacja z modelami przez usługę Openrouter.ai:
 CI/CD i Hosting:
 
 - Github Actions do tworzenia pipeline'ów CI/CD
-- Vercel do hostowania aplikacji
+- self-hosted do hostowania aplikacji przez docker
 
 Testing:
 
