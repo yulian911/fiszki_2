@@ -37,15 +37,11 @@ RUN addgroup --system --gid 1001 appgroup && \
 
 # Kopiowanie zbudowanej aplikacji z etapu 'builder'
 # Kopiujemy tylko niezbędne pliki dzięki opcji output: 'standalone'
-COPY --from=builder /app/public ./public
 COPY --from=builder --chown=appuser:appgroup /app/.next/standalone ./
 COPY --from=builder --chown=appuser:appgroup /app/.next/static ./.next/static
 
 # Zmiana użytkownika na tego z ograniczonymi uprawnieniami
 USER appuser
-
-# Ustawienie odpowiednich uprawnień dla skopiowanych plików
-RUN chown -R appuser:appgroup .
 
 # Ujawnienie portu, na którym aplikacja będzie nasłuchiwać
 EXPOSE 40310
