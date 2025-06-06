@@ -17,6 +17,14 @@ RUN npm ci
 # Pliki .dockerignore zapewniają, że niepotrzebne pliki nie są kopiowane
 COPY . .
 
+# Definiowanie argumentów, które można przekazać podczas budowania
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+# Ustawienie zmiennych środowiskowych na podstawie argumentów
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+
 # Budowanie aplikacji w trybie produkcyjnym
 # Zmienne środowiskowe z prefiksem NEXT_PUBLIC_ zostaną wbudowane w aplikację
 RUN npm run build

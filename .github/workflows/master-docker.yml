@@ -1,0 +1,112 @@
+name: Build and Deploy Docker Image to Self-Hosted
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: yulian911/fiszki
+
+jobs:
+  lint:
+    name: Lintowanie kodu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ustaw Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+      - name: Instalacja zależności
+        run: npm ci
+      - name: Lintowanie kodu
+        run: npm run lint
+
+  unit-tests:
+    name: Testy jednostkowe
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ustaw Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+      - name: Instalacja zależności
+        run: npm ci
+      - name: Uruchom testy jednostkowe z coverage
+        run: npm run test:coverage
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-coverage
+          path: coverage
+
+  build-and-push-docker-image:
+    name: Budowanie i publikacja obrazu Docker
+    needs: [lint, unit-tests]
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=,format=short
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
+            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+  deploy:
+    name: Wdrożenie na serwerze
+    needs: build-and-push-docker-image
+    runs-on: self-hosted
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy to Server
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          export TAG=$(echo $GITHUB_SHA | cut -c1-7)
+          docker-compose -f docker-compose.yml pull
+          docker-compose -f docker-compose.yml up -d --no-build
+          docker image prune -f
+        shell: bash 
