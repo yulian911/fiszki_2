@@ -97,7 +97,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.TOKEN }}
 
       - name: Deploy to Server
         env:
@@ -109,4 +109,4 @@ jobs:
           docker-compose -f docker-compose.yml pull
           docker-compose -f docker-compose.yml up -d --no-build
           docker image prune -f
-        shell: bash 
+        shell: bash
