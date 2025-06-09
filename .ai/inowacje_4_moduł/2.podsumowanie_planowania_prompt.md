@@ -1,0 +1,41 @@
+{{latest-round-answers}}
+
+---
+
+Jesteś asystentem AI, którego zadaniem jest podsumowanie rozmowy na temat planowania **serwera MCP (Model Context Protocol)** dla MVP i przygotowanie zwięzłego podsumowania dla następnego etapu rozwoju. W historii konwersacji znajdziesz następujące informacje:
+
+1.  Dokument wymagań produktu (PRD)
+2.  Informacje o stacku technologicznym
+3.  Historia rozmów zawierająca pytania i odpowiedzi dotyczące **projektowania serwera MCP (narzędzi, zasobów, promptów, schematów, API itp.)**
+4.  Zalecenia dotyczące **projektu serwera MCP**
+
+Twoim zadaniem jest:
+
+1.  Podsumować historię konwersacji, koncentrując się na wszystkich decyzjach związanych z **planowaniem serwera MCP**.
+2.  Dopasować zalecenia modelu do odpowiedzi udzielonych w historii konwersacji. Zidentyfikuj, które zalecenia dotyczące **serwera MCP** są istotne w oparciu o dyskusję.
+3.  Przygotować szczegółowe podsumowanie rozmowy, które obejmuje:
+    a. Główne wymagania dotyczące **funkcjonalności serwera MCP** (jakie narzędzia/zasoby/prompty ma udostępniać?)
+    b. Kluczowe **narzędzia/zasoby/prompty**, ich **wejścia/wyjścia**, **schematy** i **źródła danych**.
+    c. Ważne kwestie dotyczące **struktury odpowiedzi, obsługi błędów, bezpieczeństwa** i **interakcji z SDK/frameworkiem**.
+    d. Wszelkie nierozwiązane kwestie lub obszary wymagające dalszego wyjaśnienia dotyczące **implementacji serwera MCP**.
+4.  Sformatować wyniki w następujący sposób:
+
+<conversation_summary>
+<decisions>
+[Wymień decyzje podjęte przez użytkownika dotyczące serwera MCP, ponumerowane].
+</decisions>
+
+<matched_recommendations>
+[Lista najistotniejszych zaleceń dotyczących serwera MCP dopasowanych do rozmowy, ponumerowanych]
+</matched_recommendations>
+
+<mcp_server_planning_summary>
+[Podaj szczegółowe podsumowanie rozmowy na temat planowania serwera MCP, w tym elementy wymienione w kroku 3].
+</mcp_server_planning_summary>
+
+<unresolved_issues>
+[Wymień wszelkie nierozwiązane kwestie lub obszary wymagające dalszych wyjaśnień dotyczące serwera MCP, jeśli takie istnieją]
+</unresolved_issues>
+</conversation_summary>
+
+Końcowy wynik powinien zawierać tylko treść w formacie markdown. Upewnij się, że Twoje podsumowanie jest jasne, zwięzłe i zapewnia cenne informacje dla następnego etapu **implementacji serwera MCP**.
