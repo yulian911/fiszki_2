@@ -75,6 +75,26 @@ jobs:
           name: e2e-test-coverage
           path: coverage
 
+  build:
+    name: Build
+    environment: integration
+    needs:
+      - lint
+      - unit-tests
+      - e2e-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Ustaw Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      
+      - uses: yulian911/google-cloud-run-deploy@v1
+        with:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+
   status-comment:
     name: Komentarz statusu PR
     needs:
@@ -82,6 +102,8 @@ jobs:
       - unit-tests
       - e2e-tests
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - name: Dodaj komentarz do PR
         uses: actions/github-script@v7
