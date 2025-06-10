@@ -13,9 +13,12 @@ permissions:
 jobs:
   update-docs:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Ai JSDoc Updater
         id: ai_jsdoc_updater
@@ -32,7 +35,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore: Update JSDocs with AI"
           committer: "AI JSDoc Updater <noreply@github.com>"
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          author: "AI JSDoc Updater <actions@github.com>"
           branch: "chore/jsdoc-updates"
           delete-branch: true
           title: "AI JSDoc Updater"
@@ -43,3 +46,6 @@ jobs:
             ```
             ${{ steps.ai_jsdoc_updater.outputs.files-list }}
             ```
+          labels: |
+            documentation
+            ai
