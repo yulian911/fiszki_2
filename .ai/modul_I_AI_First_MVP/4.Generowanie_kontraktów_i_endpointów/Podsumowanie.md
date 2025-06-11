@@ -1,5 +1,9 @@
 # Podsumowanie
 
+supabase gen types typescript --local > src/db/database.types.ts
+
+generowanie typów
+
 W tej lekcji poznaliśmy proces generowania kontraktów i endpointów REST API z wykorzystaniem AI:
 
 1. **Inicjalizacja Supabase w projekcie:**  
