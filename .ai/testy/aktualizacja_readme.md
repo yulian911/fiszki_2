@@ -1,1 +1,0 @@
-zaaktualizuj @README.md  oraz @techstack.md  dodajac informacje o technologiach wykorzystanych  do 1) testów jednostkowych oraz 2) testów e2e. Bazuj na  

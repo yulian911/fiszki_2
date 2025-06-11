@@ -1,1 +1,0 @@
-Przygotuj środowisko do wdrażąnia testów jednostkowych i e2e wykorzystując @techstack.md  @playwright-e2e.mdc @jest-testing.mdc 

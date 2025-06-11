@@ -26,7 +26,7 @@ jobs:
         uses: yulian911/ai-action@sync-docs
         with:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          FILE_EXTENSION: ".ts,.tsx,.js,.jsx,mjs"
+          FILE_EXTENSION: ".ts,.tsx,.js,.jsx,.mjs"
           EXCLUDED_DIRS: "node_modules,dist,.git,vendor"
 
       - name: Create Pull Request if changes were made
