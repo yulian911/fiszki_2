@@ -97,6 +97,14 @@ export interface FlashcardsSetDTO {
    * Opcjonalny opis zestawu fiszek
    */
   description?: string;
+  /**
+   * Poziom dostępu zalogowanego użytkownika do zestawu.
+   */
+  accessLevel: "owner" | "viewer";
+  /**
+   * Adres e-mail właściciela zestawu, jeśli jest on udostępniony.
+   */
+  ownerEmail: string | null;
 }
 
 /**

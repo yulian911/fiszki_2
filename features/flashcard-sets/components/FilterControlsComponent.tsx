@@ -12,12 +12,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { X, Filter } from "lucide-react";
-import type { FlashcardsSetStatus, FlashcardsSetDTO } from "@/types";
+import type { FlashcardsSetStatus } from "@/types";
 
 // Typy zgodne z useFlashcardSetFilters
 type SortByOption = "name" | "createdAt" | "updatedAt";
 type SortOrderOption = "asc" | "desc";
 type StatusOption = "" | FlashcardsSetStatus;
+type ViewOption = "all" | "owned" | "shared";
 
 interface FilterControlsProps {
   filters: {
@@ -27,8 +28,11 @@ interface FilterControlsProps {
     sortOrder: SortOrderOption;
     status: StatusOption;
     nameSearch: string;
+    view: ViewOption;
   };
-  onUpdateFilters: (newFilters: Partial<FilterControlsProps['filters']>) => void;
+  onUpdateFilters: (
+    newFilters: Partial<FilterControlsProps["filters"]>
+  ) => void;
   isLoading?: boolean;
 }
 
@@ -47,27 +51,36 @@ const sortOptions = [
   // Można dodać więcej opcji sortowania, np. po liczbie fiszek, jeśli API to wspiera
 ];
 
-export function FilterControlsComponent({ 
-  filters, 
+export function FilterControlsComponent({
+  filters,
   onUpdateFilters,
-  isLoading = false 
+  isLoading = false,
 }: FilterControlsProps) {
   const handleNameSearchChange = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     if (!isLoading) {
-      onUpdateFilters({ 
+      onUpdateFilters({
         nameSearch: event.target.value,
-        ...(event.target.value !== filters.nameSearch ? { page: 1 } : {})
+        ...(event.target.value !== filters.nameSearch ? { page: 1 } : {}),
       });
     }
   };
 
   const handleStatusChange = (value: FlashcardsSetStatus | "all") => {
     if (!isLoading) {
-      onUpdateFilters({ 
+      onUpdateFilters({
         status: value === "all" ? "" : value,
-        page: 1
+        page: 1,
+      });
+    }
+  };
+
+  const handleViewChange = (value: ViewOption) => {
+    if (!isLoading) {
+      onUpdateFilters({
+        view: value,
+        page: 1,
       });
     }
   };
@@ -78,14 +91,14 @@ export function FilterControlsComponent({
         SortByOption,
         SortOrderOption,
       ];
-      onUpdateFilters({ 
-        sortBy, 
+      onUpdateFilters({
+        sortBy,
         sortOrder,
-        page: 1
+        page: 1,
       });
     }
   };
-  
+
   const resetFilters = () => {
     onUpdateFilters({
       nameSearch: "",
@@ -95,16 +108,42 @@ export function FilterControlsComponent({
       sortOrder: "desc",
     });
   };
-  
+
   // Sprawdź, czy jakiekolwiek filtry są aktywne
   const hasActiveFilters = Boolean(
-    filters.nameSearch || 
-    filters.status || 
-    (filters.sortBy !== "createdAt" || filters.sortOrder !== "desc")
+    filters.nameSearch ||
+      filters.status ||
+      filters.sortBy !== "createdAt" ||
+      filters.sortOrder !== "desc" ||
+      filters.view !== "all"
   );
 
   return (
     <div className="space-y-4">
+      <div className="flex space-x-2 border-b pb-2">
+        <Button
+          variant={filters.view === "all" ? "secondary" : "ghost"}
+          onClick={() => handleViewChange("all")}
+          disabled={isLoading}
+        >
+          Wszystkie
+        </Button>
+        <Button
+          variant={filters.view === "owned" ? "secondary" : "ghost"}
+          onClick={() => handleViewChange("owned")}
+          disabled={isLoading}
+        >
+          Moje zestawy
+        </Button>
+        <Button
+          variant={filters.view === "shared" ? "secondary" : "ghost"}
+          onClick={() => handleViewChange("shared")}
+          disabled={isLoading}
+        >
+          Udostępnione dla mnie
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-background shadow">
         <div>
           <Label htmlFor="nameSearch" className="text-sm font-medium">
@@ -180,7 +219,7 @@ export function FilterControlsComponent({
           </Select>
         </div>
       </div>
-      
+
       {hasActiveFilters && (
         <div className="flex justify-end">
           <Button

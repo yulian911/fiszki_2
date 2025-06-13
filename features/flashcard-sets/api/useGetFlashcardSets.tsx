@@ -11,10 +11,13 @@ export interface UseGetFlashcardSetsParams {
   sortOrder?: string;
   status?: string;
   nameSearch?: string;
+  view?: "all" | "owned" | "shared";
   enabled?: boolean;
 }
 
-export const getFlashcardSetsQueryKey = (params: UseGetFlashcardSetsParams = {}) => {
+export const getFlashcardSetsQueryKey = (
+  params: UseGetFlashcardSetsParams = {}
+) => {
   const {
     page = 1,
     limit = 10,
@@ -22,9 +25,13 @@ export const getFlashcardSetsQueryKey = (params: UseGetFlashcardSetsParams = {})
     sortOrder = "desc",
     status = "",
     nameSearch = "",
+    view = "all",
   } = params;
 
-  return [FLASHCARD_SETS_QUERY_KEY, { page, limit, sortBy, sortOrder, status, nameSearch }];
+  return [
+    FLASHCARD_SETS_QUERY_KEY,
+    { page, limit, sortBy, sortOrder, status, nameSearch, view },
+  ];
 };
 
 export const useGetFlashcardSets = (params: UseGetFlashcardSetsParams = {}) => {
@@ -36,11 +43,20 @@ export const useGetFlashcardSets = (params: UseGetFlashcardSetsParams = {}) => {
     sortOrder = "desc",
     status = "",
     nameSearch = "",
+    view = "all",
     enabled = true,
   } = params;
 
   return useQuery({
-    queryKey: getFlashcardSetsQueryKey({ page, limit, sortBy, sortOrder, status, nameSearch }),
+    queryKey: getFlashcardSetsQueryKey({
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+      status,
+      nameSearch,
+      view,
+    }),
     queryFn: async (): Promise<PaginatedResponse<FlashcardsSetDTO>> => {
       try {
         const queryParams = new URLSearchParams();
@@ -48,23 +64,31 @@ export const useGetFlashcardSets = (params: UseGetFlashcardSetsParams = {}) => {
         queryParams.append("limit", String(limit));
         queryParams.append("sortBy", sortBy);
         queryParams.append("sortOrder", sortOrder);
-        
+
         if (status) queryParams.append("status", status);
         if (nameSearch) queryParams.append("name", nameSearch);
-        
-        const response = await fetch(`/api/flashcards-sets?${queryParams.toString()}`);
-        
+        if (view) queryParams.append("view", view);
+
+        const response = await fetch(
+          `/api/flashcards-sets?${queryParams.toString()}`
+        );
+
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          const error = new Error(errorData.message || `Failed to fetch flashcard sets (${response.status})`);
+          const error = new Error(
+            errorData.message ||
+              `Failed to fetch flashcard sets (${response.status})`
+          );
           (error as any).status = response.status;
           throw error;
         }
-        
+
         return await response.json();
       } catch (error) {
         console.error("Error fetching flashcard sets:", error);
-        throw error instanceof Error ? error : new Error("Failed to fetch flashcard sets");
+        throw error instanceof Error
+          ? error
+          : new Error("Failed to fetch flashcard sets");
       }
     },
     enabled,
@@ -76,24 +100,29 @@ export const useGetFlashcardSets = (params: UseGetFlashcardSetsParams = {}) => {
 
 export const useGetFlashcardSetById = (setId?: string) => {
   const queryClient = useQueryClient();
-  
+
   return useQuery({
     queryKey: [FLASHCARD_SETS_QUERY_KEY, setId],
     queryFn: async () => {
       try {
         const response = await fetch(`/api/flashcards-sets/${setId}`);
-        
+
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          const error = new Error(errorData.message || `Failed to fetch flashcard set (${response.status})`);
+          const error = new Error(
+            errorData.message ||
+              `Failed to fetch flashcard set (${response.status})`
+          );
           (error as any).status = response.status;
           throw error;
         }
-        
+
         return await response.json();
       } catch (error) {
         console.error("Error fetching flashcard set:", error);
-        throw error instanceof Error ? error : new Error("Failed to fetch flashcard set");
+        throw error instanceof Error
+          ? error
+          : new Error("Failed to fetch flashcard set");
       }
     },
     enabled: !!setId,

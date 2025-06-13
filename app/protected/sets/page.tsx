@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 export default function FlashcardsSetsListViewPage() {
   const router = useRouter();
@@ -39,6 +40,7 @@ export default function FlashcardsSetsListViewPage() {
     sortOrder: filters.sortOrder,
     status: filters.status,
     nameSearch: debouncedNameSearch,
+    view: filters.view,
   };
 
   const {
@@ -53,8 +55,46 @@ export default function FlashcardsSetsListViewPage() {
   const { open: openEditModal } = useEditModalSet();
   const cloneMutation = useCloneFlashcardSet();
 
+  const handleLearn = async (set: FlashcardsSetDTO) => {
+    const toastId = toast.loading("Przygotowywanie sesji nauki...");
+    try {
+      const response = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flashcardsSetId: set.id,
+          tags: [], // Brak tagów w szybkim starcie
+          limit: 50, // Domyślny limit kart
+          shuffle: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Nie udało się utworzyć sesji.");
+      }
+
+      const data = await response.json();
+      const sessionId = data.sessionId;
+
+      toast.success("Sesja gotowa! Przekierowuję...", { id: toastId });
+      router.push(`/protected/sessions/${sessionId}`);
+    } catch (error) {
+      console.error("Błąd podczas rozpoczynania sesji:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Wystąpił nieznany błąd.",
+        { id: toastId }
+      );
+    }
+  };
+
   const handleEdit = (set: FlashcardsSetDTO) => {
-    router.push(`/protected/sets/${set.id}?edit-flashcard-set=${set.id}`);
+    if (set.accessLevel === "owner") {
+      router.push(`/protected/sets/${set.id}?edit-flashcard-set=${set.id}`);
+    } else {
+      // Dla udostępnionych zestawów, 'Edytuj' oznacza 'Ucz się'
+      router.push(`/protected/sets/${set.id}`);
+    }
   };
 
   const handleShare = (set: FlashcardsSetDTO) => {
@@ -106,7 +146,8 @@ export default function FlashcardsSetsListViewPage() {
     }
 
     if (!setsData || setsData.data.length === 0) {
-      const hasActiveFilters = filters.nameSearch || filters.status;
+      const hasActiveFilters =
+        filters.nameSearch || filters.status || filters.view !== "all";
 
       if (hasActiveFilters) {
         return (
@@ -137,6 +178,7 @@ export default function FlashcardsSetsListViewPage() {
           onShare={handleShare}
           onDelete={handleDelete}
           onClone={handleClone}
+          onLearn={handleLearn}
         />
       </div>
     );
@@ -184,10 +226,15 @@ export default function FlashcardsSetsListViewPage() {
 
       {/* Modals */}
       {setToDelete && (
-        <Dialog open={!!setToDelete} onOpenChange={(isOpen) => !isOpen && setSetToDelete(null)}>
+        <Dialog
+          open={!!setToDelete}
+          onOpenChange={(isOpen) => !isOpen && setSetToDelete(null)}
+        >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Czy na pewno chcesz usunąć zestaw: {setToDelete.name}?</DialogTitle>
+              <DialogTitle>
+                Czy na pewno chcesz usunąć zestaw: {setToDelete.name}?
+              </DialogTitle>
             </DialogHeader>
             <ConfirmDeleteModalComponent
               deleteFlashcardSetId={setToDelete.id}
@@ -198,7 +245,10 @@ export default function FlashcardsSetsListViewPage() {
       )}
 
       {setToShare && (
-        <Dialog open={!!setToShare} onOpenChange={(isOpen) => !isOpen && setSetToShare(null)}>
+        <Dialog
+          open={!!setToShare}
+          onOpenChange={(isOpen) => !isOpen && setSetToShare(null)}
+        >
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Udostępnij zestaw: {setToShare.name}</DialogTitle>
@@ -209,4 +259,4 @@ export default function FlashcardsSetsListViewPage() {
       )}
     </div>
   );
-} 
+}

@@ -14,12 +14,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // Funkcja pomocnicza do mapowania rekordu na DTO
 function mapFlashcardsSetToDTO(record: unknown): FlashcardsSetDTO {
   const item = record as any;
-  // Zakładamy, że stats_flashcards_set zwraca obiekt (lub tablicę z 1 el.) zawierający 'count'
-  const flashcardCount =
-    item.stats_flashcards_set && Array.isArray(item.stats_flashcards_set)
-      ? item.stats_flashcards_set[0]?.count
-      : item.flashcard_count ?? 0;
-
   return {
     id: item.id,
     ownerId: item.owner_id,
@@ -28,13 +22,17 @@ function mapFlashcardsSetToDTO(record: unknown): FlashcardsSetDTO {
     createdAt: item.created_at,
     updatedAt: item.updated_at,
     description: item.description,
-    flashcardCount: flashcardCount,
+    flashcardCount: item.flashcard_count ?? 0,
+    accessLevel: item.access_level,
+    ownerEmail: item.owner_email,
   };
 }
 
 // Nowa funkcja do sprawdzania, czy bieżący użytkownik jest administratorem
-export const isCurrentUserAdmin = async (supabase: SupabaseClient): Promise<boolean> => {
-  const { data, error } = await supabase.rpc('is_admin');
+export const isCurrentUserAdmin = async (
+  supabase: SupabaseClient
+): Promise<boolean> => {
+  const { data, error } = await supabase.rpc("is_admin");
   if (error) {
     console.error("Error checking admin status:", error);
     return false;
@@ -59,47 +57,34 @@ export class FlashcardsSetService {
     sortBy: string = "createdAt",
     sortOrder: string = "desc",
     status?: FlashcardsSetStatus,
-    nameSearch?: string
+    nameSearch?: string,
+    view: "all" | "owned" | "shared" = "all"
   ): Promise<PaginatedResponse<FlashcardsSetDTO>> {
-    // Obliczanie przesunięcia dla paginacji
-    const offset = (page - 1) * limit;
-
-    // Początkowe zapytanie - używamy widoku statystyk do pobrania liczby fiszek
-    let query = this.supabase
-      .from("flashcards_set")
-      .select("*, stats_flashcards_set(count)", { count: "exact" })
-      .eq("owner_id", userId);
-
-    // Dodanie filtrowania po statusie, jeśli podano
-    if (status) {
-      query = query.eq("status", status);
-    }
-
-    // Dodanie filtrowania po nazwie, jeśli podano
-    if (nameSearch) {
-      query = query.ilike("name", `%${nameSearch}%`);
-    }
-
-    // Sortowanie i paginacja: mapujemy sortBy na nazwy kolumn w DB
-    const sortColumnMap: Record<string, string> = {
-      name: "name",
-      createdAt: "created_at",
-      updatedAt: "updated_at",
-    };
-    const column = sortColumnMap[sortBy] ?? "created_at";
-    const ascending = sortOrder === "asc";
-
-    const { data, error, count } = await query
-      .order(column, { ascending })
-      .range(offset, offset + limit - 1);
+    const { data, error } = await this.supabase.rpc(
+      "get_flashcard_sets_for_user",
+      {
+        p_user_id: userId,
+        p_page: page,
+        p_limit: limit,
+        p_sort_by: sortBy,
+        p_sort_order: sortOrder,
+        p_status: status || null,
+        p_name_search: nameSearch || null,
+        p_view: view,
+      }
+    );
 
     if (error) {
+      console.error(
+        "Błąd podczas wywołania RPC get_flashcard_sets_for_user:",
+        error
+      );
       throw new Error(
         `Błąd podczas pobierania listy zestawów: ${error.message}`
       );
     }
 
-    // Mapowanie danych z DB na DTO
+    const totalCount = data && data.length > 0 ? data[0].total_count : 0;
     const flashcardsSets: FlashcardsSetDTO[] = (data || []).map(
       mapFlashcardsSetToDTO
     );
@@ -109,7 +94,7 @@ export class FlashcardsSetService {
       meta: {
         page,
         limit,
-        total: count || 0,
+        total: totalCount,
       },
     };
   }
@@ -250,7 +235,6 @@ export class FlashcardsSetService {
     command: UpdateFlashcardsSetCommand,
     isAdmin: boolean = false
   ): Promise<FlashcardsSetDTO> {
-    
     let query = this.supabase
       .from("flashcards_set")
       .select("status")
@@ -262,15 +246,11 @@ export class FlashcardsSetService {
     }
 
     const { data: existingSet, error: checkError } = await query.single();
-    
-    if (checkError) {
-      throw new Error(`Zestaw nie istnieje lub brak uprawnień: ${checkError.message}`);
-    }
 
-    // Pozwalamy na zmianę statusu przez admina, nawet jeśli nie jest 'accepted'
-    // Właściciel nadal może edytować tylko 'accepted' zestawy
-    if (!isAdmin && existingSet.status !== "accepted") {
-      throw new Error(`Można aktualizować tylko zestawy o statusie 'accepted'. Aktualny status: ${existingSet.status}.`);
+    if (checkError) {
+      throw new Error(
+        `Zestaw nie istnieje lub brak uprawnień: ${checkError.message}`
+      );
     }
 
     const updates: Partial<{
@@ -281,7 +261,8 @@ export class FlashcardsSetService {
 
     if (command.name !== undefined) updates.name = command.name;
     if (command.status !== undefined) updates.status = command.status;
-    if (command.description !== undefined) updates.description = command.description;
+    if (command.description !== undefined)
+      updates.description = command.description;
 
     if (Object.keys(updates).length === 0) {
       const { data } = await this.supabase
@@ -291,7 +272,7 @@ export class FlashcardsSetService {
         .single();
       return mapFlashcardsSetToDTO(data);
     }
-    
+
     // Dodajemy updated_at, aby zawsze odnotować fakt edycji
     const finalUpdates = {
       ...updates,
@@ -302,11 +283,11 @@ export class FlashcardsSetService {
       .from("flashcards_set")
       .update(finalUpdates)
       .eq("id", setId);
-    
+
     if (!isAdmin) {
       updateQuery = updateQuery.eq("owner_id", userId);
     }
-    
+
     const { data, error } = await updateQuery.select().single();
 
     if (error) {
@@ -333,10 +314,12 @@ export class FlashcardsSetService {
         `Zestaw nie istnieje lub użytkownik nie ma do niego dostępu: ${checkError.message}`
       );
     }
-    
+
     // Sprawdzenie statusu - zgodnie z planem, usuwać można tylko zaakceptowane zestawy
     if (existingSet.status !== "accepted") {
-      throw new Error(`Można usuwać tylko zestawy o statusie 'accepted'. Aktualny status: ${existingSet.status}.`);
+      throw new Error(
+        `Można usuwać tylko zestawy o statusie 'accepted'. Aktualny status: ${existingSet.status}.`
+      );
     }
 
     // Usunięcie zestawu (kaskadowe usunięcie fiszek powinno być obsługiwane przez RLS w bazie)
@@ -379,9 +362,7 @@ export class FlashcardsSetService {
       );
     }
     if (!data) {
-      throw new Error(
-        "Klonowanie zestawu fiszek nie zwróciło żadnych danych."
-      );
+      throw new Error("Klonowanie zestawu fiszek nie zwróciło żadnych danych.");
     }
 
     return mapFlashcardsSetToDTO(data);
@@ -423,7 +404,9 @@ export class FlashcardsSetService {
       .single();
 
     if (shareError) {
-      throw new Error(`Błąd podczas udostępniania zestawu: ${shareError.message}`);
+      throw new Error(
+        `Błąd podczas udostępniania zestawu: ${shareError.message}`
+      );
     }
 
     return {
@@ -450,7 +433,7 @@ export class FlashcardsSetService {
     if (checkError || count === 0) {
       throw new Error("Zestaw nie znaleziony lub brak uprawnień.");
     }
-    
+
     // 2. Pobierz udostępnienia
     const { data, error } = await this.supabase
       .from("flashcards_set_shares")
@@ -504,7 +487,11 @@ export class FlashcardsSetService {
     }
   }
 
-  async isNameUnique(userId: string, name: string, setIdToExclude?: string): Promise<{ isUnique: boolean }> {
+  async isNameUnique(
+    userId: string,
+    name: string,
+    setIdToExclude?: string
+  ): Promise<{ isUnique: boolean }> {
     let query = this.supabase
       .from("flashcards_set")
       .select("id")
@@ -519,7 +506,9 @@ export class FlashcardsSetService {
     const { data, error } = await query;
 
     if (error) {
-      throw new Error(`Błąd podczas sprawdzania unikalności nazwy: ${error.message}`);
+      throw new Error(
+        `Błąd podczas sprawdzania unikalności nazwy: ${error.message}`
+      );
     }
 
     return { isUnique: data.length === 0 };
@@ -533,8 +522,10 @@ export class FlashcardsSetService {
 import { createClient } from "@/utils/supabase/client";
 
 const getUserIdOrThrow = async (): Promise<string> => {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
     throw new Error("Użytkownik nie jest uwierzytelniony.");
   }
@@ -549,7 +540,8 @@ export const listFlashcardSets = (
   sortBy: string,
   sortOrder: string,
   status?: FlashcardsSetStatus,
-  nameSearch?: string
+  nameSearch?: string,
+  view?: "all" | "owned" | "shared"
 ) => {
   return getUserIdOrThrow().then((userId) =>
     flashcardsSetService.list(
@@ -559,7 +551,8 @@ export const listFlashcardSets = (
       sortBy,
       sortOrder,
       status,
-      nameSearch
+      nameSearch,
+      view
     )
   );
 };
@@ -601,7 +594,7 @@ export const cloneFlashcardsSet = (
 };
 
 export const checkSetNameUnique = (name: string, setIdToExclude?: string) => {
-    return getUserIdOrThrow().then((userId) =>
-        flashcardsSetService.isNameUnique(userId, name, setIdToExclude)
-    );
-}
+  return getUserIdOrThrow().then((userId) =>
+    flashcardsSetService.isNameUnique(userId, name, setIdToExclude)
+  );
+};

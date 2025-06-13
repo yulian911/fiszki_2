@@ -3,9 +3,9 @@ import { createClient } from "../../../utils/supabase/server";
 import { FlashcardsSetService } from "../../../features/flashcard-sets/services/FlashcardsSetService";
 import {
   listFlashcardsSetsQuerySchema,
-  createFlashcardsSetCommandSchema
+  createFlashcardsSetCommandSchema,
 } from "../../../features/schemas/flashcardsSetSchemas";
-import { rateLimit } from '../../../lib/rate-limit';
+import { rateLimit } from "../../../lib/rate-limit";
 
 /**
  * Pobieranie listy zestawów fiszek
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   try {
     const rateLimitResult = await rateLimit(request);
     if (!rateLimitResult.success) {
-      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
     const supabase = await createClient();
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     }
 
     const flashcardsSetService = new FlashcardsSetService(supabase);
-    
+
     const searchParams = request.nextUrl.searchParams;
     const queryValidation = listFlashcardsSetsQuerySchema.safeParse(
       Object.fromEntries(searchParams.entries())
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { page, limit, sortBy, sortOrder, status, name } =
+    const { page, limit, sortBy, sortOrder, status, name, view } =
       queryValidation.data;
     const result = await flashcardsSetService.list(
       user.id,
@@ -54,7 +54,8 @@ export async function GET(request: NextRequest) {
       sortBy,
       sortOrder,
       status,
-      name
+      name,
+      view
     );
 
     return NextResponse.json(result);
@@ -74,10 +75,10 @@ export async function POST(request: NextRequest) {
   try {
     const rateLimitResult = await rateLimit(request);
     if (!rateLimitResult.success) {
-      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
-    const supabase = await  createClient();
+    const supabase = await createClient();
     const {
       data: { user },
       error: authError,

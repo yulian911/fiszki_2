@@ -9,6 +9,7 @@ export const flashcardsSetListQuerySchema = z.object({
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
   status: z.enum(["pending", "accepted", "rejected"]).optional(),
   name: z.string().optional(),
+  view: z.enum(["all", "owned", "shared"]).default("all"),
 });
 
 // Schemat walidacji dla tworzenia zestawu
@@ -43,6 +44,8 @@ export const flashcardsSetResponseSchema = z.object({
   flashcardCount: z.number().int().nonnegative().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  accessLevel: z.enum(["owner", "viewer"]),
+  ownerEmail: z.string().email().nullable(),
 });
 
 // Schemat dla fiszki

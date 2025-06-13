@@ -1,10 +1,10 @@
-import { 
-  parseAsString, 
-  parseAsStringEnum, 
-  parseAsInteger, 
+import {
+  parseAsString,
+  parseAsStringEnum,
+  parseAsInteger,
   useQueryStates,
   parseAsBoolean,
-  createParser
+  createParser,
 } from "nuqs";
 import { FlashcardsSetStatus } from "@/types";
 
@@ -19,6 +19,9 @@ type SortByOption = (typeof sortByOptions)[number];
 const sortOrderOptions = ["asc", "desc"] as const;
 type SortOrderOption = (typeof sortOrderOptions)[number];
 
+const viewOptions = ["all", "owned", "shared"] as const;
+type ViewOption = (typeof viewOptions)[number];
+
 // Parser dla limitu z domyślną wartością
 const parseLimitWithDefault = createParser({
   parse: (value: string) => {
@@ -27,17 +30,24 @@ const parseLimitWithDefault = createParser({
   },
   serialize: (value: number) => String(value),
 })
-.withDefault(10)
-.withOptions({ clearOnDefault: true });
+  .withDefault(10)
+  .withOptions({ clearOnDefault: true });
 
 // Hook do zarządzania filtrami zestawów fiszek
 export const useFlashcardSetFilters = () => {
   return useQueryStates({
     page: parseAsInteger.withDefault(1).withOptions({ clearOnDefault: true }),
     limit: parseLimitWithDefault,
-    sortBy: parseAsStringEnum<SortByOption>([...sortByOptions]).withDefault("createdAt"),
-    sortOrder: parseAsStringEnum<SortOrderOption>([...sortOrderOptions]).withDefault("desc"),
+    sortBy: parseAsStringEnum<SortByOption>([...sortByOptions]).withDefault(
+      "createdAt"
+    ),
+    sortOrder: parseAsStringEnum<SortOrderOption>([
+      ...sortOrderOptions,
+    ]).withDefault("desc"),
     status: parseAsStringEnum<StatusOption>([...statusOptions]).withDefault(""),
-    nameSearch: parseAsString.withDefault("").withOptions({ clearOnDefault: true }),
+    nameSearch: parseAsString
+      .withDefault("")
+      .withOptions({ clearOnDefault: true }),
+    view: parseAsStringEnum<ViewOption>([...viewOptions]).withDefault("all"),
   });
-}; 
+};
