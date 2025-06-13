@@ -117,6 +117,14 @@ export type UpdateFlashcardsSetCommand = Partial<
 >;
 
 /**
+ * Komenda klonowania istniejącego zestawu fiszek
+ * Umożliwia sklonowanie zestawu dla zalogowanego użytkownika lub innego, docelowego użytkownika
+ */
+export interface CloneFlashcardsSetCommand {
+  targetUserId?: string;
+}
+
+/**
  * DTO zawierające zestaw fiszek wraz z listą fiszek
  */
 export interface FlashcardsSetWithCardsDTO extends FlashcardsSetDTO {
@@ -322,25 +330,26 @@ export interface StatsDTO {
 }
 
 // -----------------------------------------------------------------------------
-// 9. Sharing (Collaborators)
+// 9. Sharing
 // -----------------------------------------------------------------------------
 
 /**
- * DTO współpracownika zestawu fiszek
+ * DTO reprezentujące udostępnienie zestawu fiszek
  */
-export interface SetCollaboratorDTO {
+export interface ShareDTO {
   id: string;
-  email: string;
-  role: "viewer" | "editor";
-  invitedAt: string;
-  status: "pending" | "accepted" | "rejected";
+  setId: string;
+  userId: string;
+  role: "learning";
+  createdAt: string;
+  expiresAt?: string;
 }
 
 /**
- * Komenda zaproszenia współpracownika do zestawu
+ * Komenda udostępnienia zestawu fiszek innemu użytkownikowi
  */
-export interface InviteCollaboratorCommand {
-  setId: string;
-  email: string;
-  role: "viewer" | "editor";
+export interface CreateShareCommand {
+  userId: ShareDTO["userId"];
+  role: ShareDTO["role"];
+  expiresAt?: ShareDTO["expiresAt"];
 }

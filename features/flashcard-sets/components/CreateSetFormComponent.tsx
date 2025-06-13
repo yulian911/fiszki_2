@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,10 +16,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { createFlashcardsSetSchema } from "@/features/schemas/flashcardsSet";
-import { SubmitButton } from "@/components/submit-button";
-import { useQueryClient } from "@tanstack/react-query";
 import { useCreateFlashcardSet } from "../api/useMutateFlashcardSets";
 import { toast } from "sonner";
+import { useDebounce } from "@/hooks/use-debounce";
+import { checkSetNameUnique } from "../services/FlashcardsSetService";
 
 type Props = {
   onCancel: () => void;
@@ -29,32 +29,54 @@ type Props = {
 type FormValues = z.infer<typeof createFlashcardsSetSchema>;
 
 export function CreateSetFormComponent({ onCancel }: Props) {
-  // Pobranie metod do obsługi formularza
   const form = useForm<FormValues>({
     resolver: zodResolver(createFlashcardsSetSchema),
     defaultValues: {
       name: "",
       description: "",
     },
+    mode: "onChange",
   });
 
-  const queryClient = useQueryClient();
   const { mutate: createSet, isPending } = useCreateFlashcardSet();
+  const [isCheckingName, setIsCheckingName] = useState(false);
 
-  // Obsługa wysłania formularza
-  const onSubmit = async (values: FormValues) => {
-    createSet(values, {
-      onSuccess: async () => {
-        // Najpierw zamykamy modal
-        onCancel();
-        // Potem pokazujemy powiadomienie o sukcesie
-        toast.success("Zestaw fiszek został utworzony");
-      },
-      onError: (error) => {
-        toast.error(`Błąd podczas tworzenia zestawu fiszek: ${error.message}`);
+  const nameValue = form.watch("name");
+  const debouncedName = useDebounce(nameValue, 500);
+
+  useEffect(() => {
+    const checkName = async () => {
+      if (debouncedName && debouncedName.length > 2) {
+        setIsCheckingName(true);
+        try {
+          const { isUnique } = await checkSetNameUnique(debouncedName);
+          if (!isUnique) {
+            form.setError("name", {
+              type: "manual",
+              message: "Ta nazwa jest już zajęta.",
+            });
+          } else {
+             form.clearErrors("name");
+          }
+        } catch (error) {
+          console.error("Błąd podczas sprawdzania nazwy:", error);
+        } finally {
+          setIsCheckingName(false);
+        }
       }
+    };
+    checkName();
+  }, [debouncedName, form]);
+
+  const onSubmit = (values: FormValues) => {
+    createSet(values, {
+      onSuccess: () => {
+        onCancel();
+      },
     });
   };
+  
+  const isSubmitDisabled = isPending || isCheckingName || !form.formState.isValid;
 
   return (
     <Form {...form}>
@@ -73,6 +95,7 @@ export function CreateSetFormComponent({ onCancel }: Props) {
                 />
               </FormControl>
               <FormMessage />
+               {isCheckingName && <p className="text-sm text-muted-foreground">Sprawdzanie nazwy...</p>}
             </FormItem>
           )}
         />
@@ -104,8 +127,8 @@ export function CreateSetFormComponent({ onCancel }: Props) {
           >
             Anuluj
           </Button>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? "Tworzenie..." : "Utwórz"}
+          <Button type="submit" disabled={isSubmitDisabled}>
+            {isPending ? "Tworzenie..." : isCheckingName ? "Sprawdzanie..." : "Utwórz"}
           </Button>
         </div>
       </form>

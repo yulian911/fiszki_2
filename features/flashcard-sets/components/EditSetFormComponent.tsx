@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -16,20 +16,17 @@ import {
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import type { UpdateFlashcardsSetCommand, FlashcardsSetDTO, FlashcardsSetStatus } from '@/types';
+import type { FlashcardsSetDTO, FlashcardsSetStatus } from '@/types';
 import { useGetFlashCardsSetId } from '../api/useGetFlashcardSetsId';
 import { useUpdateFlashcardSet } from '../api/useMutateFlashcardSets';
-import { useQueryClient } from '@tanstack/react-query';
-import { FLASHCARD_SETS_QUERY_KEY } from '../api/useGetFlashcardSets';
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
-import { SubmitButton } from "@/components/submit-button";
+import { useDebounce } from '@/hooks/use-debounce';
+import { checkSetNameUnique } from '../services/FlashcardsSetService';
 
 const flashcardsSetStatusEnum = z.enum(["pending", "accepted", "rejected"]);
 
@@ -38,14 +35,14 @@ const formSchema = z.object({
     .min(3, { message: "Nazwa zestawu musi mieć co najmniej 3 znaki." })
     .max(100, { message: "Nazwa zestawu nie może przekraczać 100 znaków." }),
   status: flashcardsSetStatusEnum,
-  description: z.string().max(500, { message: "Opis nie może przekraczać 500 znaków." }),
+  description: z.string().max(500, { message: "Opis nie może przekraczać 500 znaków." }).optional(),
 });
 
 type EditSetFormValues = z.infer<typeof formSchema>;
 
 interface EditSetFormComponentProps {
   flashcardSetId: string;
-  onCancel?: () => void;
+  onCancel: () => void;
 }
 
 const statusOptions: { label: string; value: FlashcardsSetStatus }[] = [
@@ -55,15 +52,8 @@ const statusOptions: { label: string; value: FlashcardsSetStatus }[] = [
 ];
 
 export function EditSetFormComponent({ onCancel, flashcardSetId }: EditSetFormComponentProps) {
-  const { data, isLoading, error } = useGetFlashCardsSetId({ flashcardSetId });
-  const updateMutation = useUpdateFlashcardSet();
-  const queryClient = useQueryClient();
-  
-  // Check both data formats - some APIs return {flashcardSet: {...}} and others return the set directly
-  const flashcardSet = data?.flashcardSet || data;
-  
-  console.log('Data from query:', data);
-  console.log('Extracted flashcardSet:', flashcardSet);
+  const { data: flashcardSet, isLoading, error } = useGetFlashCardsSetId({ flashcardSetId });
+  const { mutate: updateSet, isPending } = useUpdateFlashcardSet();
   
   const form = useForm<EditSetFormValues>({
     resolver: zodResolver(formSchema),
@@ -72,91 +62,66 @@ export function EditSetFormComponent({ onCancel, flashcardSetId }: EditSetFormCo
       status: "pending",
       description: "",
     },
+    mode: "onChange",
   });
+  
+  const [initialName, setInitialName] = useState<string | undefined>(undefined);
+  const [isCheckingName, setIsCheckingName] = useState(false);
+  
+  const nameValue = form.watch("name");
+  const debouncedName = useDebounce(nameValue, 500);
 
-  // Update form when data is loaded
   useEffect(() => {
     if (flashcardSet) {
-      form.reset({
+      const initialValues = {
         name: flashcardSet.name || "",
         status: flashcardSet.status || "pending",
         description: flashcardSet.description || "",
-      });
+      };
+      form.reset(initialValues);
+      setInitialName(initialValues.name);
     }
   }, [flashcardSet, form]);
+  
+  useEffect(() => {
+    const checkName = async () => {
+      if (debouncedName && debouncedName !== initialName && debouncedName.length > 2) {
+        setIsCheckingName(true);
+        try {
+          const { isUnique } = await checkSetNameUnique(debouncedName, flashcardSetId);
+          if (!isUnique) {
+            form.setError("name", {
+              type: "manual",
+              message: "Ta nazwa jest już zajęta.",
+            });
+          } else {
+             form.clearErrors("name");
+          }
+        } catch (error) {
+          console.error("Błąd podczas sprawdzania nazwy:", error);
+        } finally {
+          setIsCheckingName(false);
+        }
+      }
+    };
+    checkName();
+  }, [debouncedName, initialName, flashcardSetId, form]);
 
-  async function onSubmit(values: EditSetFormValues) {
-    console.log('Form submitted with values:', values);
-    
-    if (!flashcardSet || typeof flashcardSet !== 'object') {
-      console.error('No valid flashcard set data available!', flashcardSet);
-      return;
-    }
-    
-    // Make sure we have an ID before proceeding
-    const setId = flashcardSet.id;
-    if (!setId) {
-      console.error('Flashcard set has no ID!', flashcardSet);
-      return;
-    }
-    
-    console.log('Current flashcard set:', flashcardSet);
-    
-    const command: UpdateFlashcardsSetCommand = {};
-    let hasChanges = false;
+  const onSubmit = (values: EditSetFormValues) => {
+    updateSet(
+      { setId: flashcardSetId, command: values },
+      {
+        onSuccess: () => {
+          onCancel();
+        },
+      }
+    );
+  };
 
-    if (values.name !== flashcardSet.name) {
-      command.name = values.name;
-      hasChanges = true;
-      console.log(`Name changed from "${flashcardSet.name}" to "${values.name}"`);
-    }
-    
-    if (values.status !== flashcardSet.status) {
-      command.status = values.status;
-      hasChanges = true;
-      console.log(`Status changed from "${flashcardSet.status}" to "${values.status}"`);
-    }
+  if (isLoading) return <div className="p-4 text-center">Ładowanie danych formularza...</div>;
+  if (error) return <div className="p-4 text-center text-red-500">Błąd: {error.message}</div>;
 
-    if (values.description !== flashcardSet.description) {
-      command.description = values.description;
-      hasChanges = true;
-      console.log(`Description changed from "${flashcardSet.description}" to "${values.description}"`);
-    }
-
-    if (!hasChanges) {
-      console.log('No changes detected, closing modal');
-      onCancel?.();
-      return;
-    }
-
-    console.log('Changes detected, sending update with command:', command);
-    
-    try {
-      // Use React Query mutation
-      await updateMutation.mutateAsync({ 
-        setId: setId, 
-        command 
-      });
-      
-      console.log('Update successful!');
-      
-      // Force refresh queries
-      queryClient.invalidateQueries({ queryKey: [FLASHCARD_SETS_QUERY_KEY] });
-      queryClient.invalidateQueries({ queryKey: [FLASHCARD_SETS_QUERY_KEY, flashcardSetId] });
-      
-      // Close the modal
-      onCancel?.();
-      toast.success("Zestaw fiszek został zaktualizowany");
-    } catch (error) {
-      console.error('Failed to update set:', error);
-      toast.error(`Błąd podczas aktualizacji zestawu fiszek: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
-
-  const isDisabled = updateMutation.isPending;
+  const isSubmitDisabled = isPending || isCheckingName || !form.formState.isDirty || !form.formState.isValid;
 
   return (
     <Form {...form}>
@@ -171,11 +136,12 @@ export function EditSetFormComponent({ onCancel, flashcardSetId }: EditSetFormCo
                 <Input 
                   placeholder="Wpisz nową nazwę zestawu" 
                   {...field} 
-                  disabled={isDisabled}
+                  disabled={isPending}
                   autoFocus
                 />
               </FormControl>
               <FormMessage />
+              {isCheckingName && <p className="text-sm text-muted-foreground">Sprawdzanie nazwy...</p>}
             </FormItem>
           )}
         />
@@ -188,7 +154,7 @@ export function EditSetFormComponent({ onCancel, flashcardSetId }: EditSetFormCo
               <Select 
                 onValueChange={field.onChange} 
                 defaultValue={field.value}
-                disabled={isDisabled}
+                disabled={isPending}
               >
                 <FormControl>
                   <SelectTrigger>
@@ -217,8 +183,8 @@ export function EditSetFormComponent({ onCancel, flashcardSetId }: EditSetFormCo
                 <Textarea
                   placeholder="Opisz zestaw..."
                   {...field}
-                  disabled={isDisabled}
                   value={field.value || ""}
+                  disabled={isPending}
                 />
               </FormControl>
               <FormMessage />
@@ -231,12 +197,12 @@ export function EditSetFormComponent({ onCancel, flashcardSetId }: EditSetFormCo
             type="button" 
             variant="outline" 
             onClick={onCancel} 
-            disabled={isDisabled}
+            disabled={isPending}
           >
             Anuluj
           </Button>
-          <Button type="submit" disabled={isDisabled}>
-            {isDisabled ? "Zapisywanie..." : "Zapisz zmiany"}
+          <Button type="submit" disabled={isSubmitDisabled}>
+            {isPending ? "Zapisywanie..." : isCheckingName ? "Sprawdzanie..." : "Zapisz zmiany"}
           </Button>
         </div>
       </form>

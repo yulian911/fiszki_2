@@ -74,10 +74,11 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await params;
+    const resolvedParams = await context.params;
     const id = z.string().uuid().parse(resolvedParams.id);
     await FlashcardsService.delete(id);
     return new NextResponse(null, { status: 204 });

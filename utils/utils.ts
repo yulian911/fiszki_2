@@ -14,3 +14,16 @@ export function encodedRedirect(
 ) {
   return redirect(`${path}?${type}=${encodeURIComponent(message)}`);
 }
+
+export function formatDate(dateString: string): string {
+  if (!dateString) return "-";
+  try {
+    return new Intl.DateTimeFormat('pl-PL', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }).format(new Date(dateString));
+  } catch (error) {
+    return dateString; // Zwróć oryginalny string w razie błędu
+  }
+}

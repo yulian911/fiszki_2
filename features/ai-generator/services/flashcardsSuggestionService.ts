@@ -86,12 +86,11 @@ export class FlashcardsSuggestionService {
     }
     const supabase = await createClient();
     const { data: flashcard, error } = await supabase
-      .from("flashcards")
-      .insert({
-        flashcards_set_id: command.flashcardsSetId,
-        question: suggestion.question,
-        answer: suggestion.answer,
-        source: "ai-full",
+      .rpc("create_flashcard_and_update_tsv", {
+        p_flashcards_set_id: command.flashcardsSetId,
+        p_question: suggestion.question,
+        p_answer: suggestion.answer,
+        p_source: "ai-full",
       })
       .select("*")
       .single();

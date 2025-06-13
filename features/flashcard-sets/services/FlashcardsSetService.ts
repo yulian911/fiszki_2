@@ -5,39 +5,21 @@ import {
   UpdateFlashcardsSetCommand,
   PaginatedResponse,
   FlashcardsSetStatus,
+  CloneFlashcardsSetCommand,
+  CreateShareCommand,
+  ShareDTO,
 } from "../../../types";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-// Typy pomocnicze dla danych z bazy danych
-interface FlashcardsSetRecord {
-  id: string;
-  owner_id: string;
-  name: string;
-  status: FlashcardsSetStatus;
-  created_at: string;
-  updated_at: string;
-}
-
-interface FlashcardRecord {
-  id: string;
-  flashcards_set_id: string;
-  question: string;
-  answer: string;
-  source: "ai-full" | "ai-edit" | "manual";
-  created_at: string;
-  updated_at: string;
-}
-
-interface TagRecord {
-  id: string;
-  name: string;
-  created_at: string;
-  updated_at: string;
-}
 
 // Funkcja pomocnicza do mapowania rekordu na DTO
 function mapFlashcardsSetToDTO(record: unknown): FlashcardsSetDTO {
   const item = record as any;
+  // Zakładamy, że stats_flashcards_set zwraca obiekt (lub tablicę z 1 el.) zawierający 'count'
+  const flashcardCount =
+    item.stats_flashcards_set && Array.isArray(item.stats_flashcards_set)
+      ? item.stats_flashcards_set[0]?.count
+      : item.flashcard_count ?? 0;
+
   return {
     id: item.id,
     ownerId: item.owner_id,
@@ -46,13 +28,19 @@ function mapFlashcardsSetToDTO(record: unknown): FlashcardsSetDTO {
     createdAt: item.created_at,
     updatedAt: item.updated_at,
     description: item.description,
-    flashcardCount:
-      item.flashcard_count ??
-      (Array.isArray(item.flashcards) && item.flashcards.length > 0
-        ? item.flashcards[0].count
-        : 0),
+    flashcardCount: flashcardCount,
   };
 }
+
+// Nowa funkcja do sprawdzania, czy bieżący użytkownik jest administratorem
+export const isCurrentUserAdmin = async (supabase: SupabaseClient): Promise<boolean> => {
+  const { data, error } = await supabase.rpc('is_admin');
+  if (error) {
+    console.error("Error checking admin status:", error);
+    return false;
+  }
+  return data === true;
+};
 
 export class FlashcardsSetService {
   private supabase: SupabaseClient;
@@ -76,10 +64,10 @@ export class FlashcardsSetService {
     // Obliczanie przesunięcia dla paginacji
     const offset = (page - 1) * limit;
 
-    // Początkowe zapytanie
+    // Początkowe zapytanie - używamy widoku statystyk do pobrania liczby fiszek
     let query = this.supabase
       .from("flashcards_set")
-      .select("*, flashcards(count)", { count: "exact" })
+      .select("*, stats_flashcards_set(count)", { count: "exact" })
       .eq("owner_id", userId);
 
     // Dodanie filtrowania po statusie, jeśli podano
@@ -259,43 +247,67 @@ export class FlashcardsSetService {
   async update(
     userId: string,
     setId: string,
-    command: UpdateFlashcardsSetCommand
+    command: UpdateFlashcardsSetCommand,
+    isAdmin: boolean = false
   ): Promise<FlashcardsSetDTO> {
-    // Przygotowanie pól do aktualizacji
+    
+    let query = this.supabase
+      .from("flashcards_set")
+      .select("status")
+      .eq("id", setId);
+
+    // Jeśli użytkownik nie jest adminem, musi być właścicielem
+    if (!isAdmin) {
+      query = query.eq("owner_id", userId);
+    }
+
+    const { data: existingSet, error: checkError } = await query.single();
+    
+    if (checkError) {
+      throw new Error(`Zestaw nie istnieje lub brak uprawnień: ${checkError.message}`);
+    }
+
+    // Pozwalamy na zmianę statusu przez admina, nawet jeśli nie jest 'accepted'
+    // Właściciel nadal może edytować tylko 'accepted' zestawy
+    if (!isAdmin && existingSet.status !== "accepted") {
+      throw new Error(`Można aktualizować tylko zestawy o statusie 'accepted'. Aktualny status: ${existingSet.status}.`);
+    }
+
     const updates: Partial<{
       name: string;
       status: FlashcardsSetStatus;
       description: string;
     }> = {};
 
-    if (command.name !== undefined) {
-      updates.name = command.name;
-    }
+    if (command.name !== undefined) updates.name = command.name;
+    if (command.status !== undefined) updates.status = command.status;
+    if (command.description !== undefined) updates.description = command.description;
 
-    if (command.status !== undefined) {
-      updates.status = command.status;
-    }
-
-    if (command.description !== undefined) {
-      updates.description = command.description;
-    }
-
-    // Sprawdzenie, czy cokolwiek wymaga aktualizacji
     if (Object.keys(updates).length === 0) {
-      throw new Error("Brak pól do aktualizacji");
+      const { data } = await this.supabase
+        .from("flashcards_set")
+        .select("*, stats_flashcards_set(count)")
+        .eq("id", setId)
+        .single();
+      return mapFlashcardsSetToDTO(data);
     }
+    
+    // Dodajemy updated_at, aby zawsze odnotować fakt edycji
+    const finalUpdates = {
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
 
-    console.log("Aktualizacja zestawu:", setId, "dla użytkownika:", userId);
-    console.log("Aktualizowane pola:", updates);
-
-    // Wykonanie aktualizacji
-    const { data, error } = await this.supabase
+    let updateQuery = this.supabase
       .from("flashcards_set")
-      .update(updates)
-      .eq("id", setId)
-      .eq("owner_id", userId)
-      .select()
-      .single();
+      .update(finalUpdates)
+      .eq("id", setId);
+    
+    if (!isAdmin) {
+      updateQuery = updateQuery.eq("owner_id", userId);
+    }
+    
+    const { data, error } = await updateQuery.select().single();
 
     if (error) {
       throw new Error(`Błąd podczas aktualizacji zestawu: ${error.message}`);
@@ -311,7 +323,7 @@ export class FlashcardsSetService {
     // Sprawdzenie, czy zestaw istnieje i należy do użytkownika
     const { data: existingSet, error: checkError } = await this.supabase
       .from("flashcards_set")
-      .select("*")
+      .select("status")
       .eq("id", setId)
       .eq("owner_id", userId)
       .single();
@@ -320,6 +332,11 @@ export class FlashcardsSetService {
       throw new Error(
         `Zestaw nie istnieje lub użytkownik nie ma do niego dostępu: ${checkError.message}`
       );
+    }
+    
+    // Sprawdzenie statusu - zgodnie z planem, usuwać można tylko zaakceptowane zestawy
+    if (existingSet.status !== "accepted") {
+      throw new Error(`Można usuwać tylko zestawy o statusie 'accepted'. Aktualny status: ${existingSet.status}.`);
     }
 
     // Usunięcie zestawu (kaskadowe usunięcie fiszek powinno być obsługiwane przez RLS w bazie)
@@ -332,4 +349,259 @@ export class FlashcardsSetService {
       throw new Error(`Błąd podczas usuwania zestawu: ${error.message}`);
     }
   }
+
+  /**
+   * Klonuje istniejący zestaw fiszek
+   * Możliwe jest sklonowanie dla siebie lub dla innego użytkownika (jeśli mamy uprawnienia)
+   */
+  async clone(
+    userId: string,
+    setId: string,
+    command: CloneFlashcardsSetCommand
+  ): Promise<FlashcardsSetDTO> {
+    const { data: userData, error: userError } =
+      await this.supabase.auth.getUser();
+
+    if (userError || !userData.user) {
+      throw new Error(`Brak uwierzytelnienia: ${userError?.message}`);
+    }
+
+    const { data, error } = await this.supabase
+      .rpc("clone_flashcards_set", {
+        set_id_to_clone: setId,
+        new_owner_id: command.targetUserId || userData.user.id,
+      })
+      .single();
+
+    if (error) {
+      throw new Error(
+        `Błąd podczas klonowania zestawu fiszek: ${error.message}`
+      );
+    }
+    if (!data) {
+      throw new Error(
+        "Klonowanie zestawu fiszek nie zwróciło żadnych danych."
+      );
+    }
+
+    return mapFlashcardsSetToDTO(data);
+  }
+
+  /**
+   * Udostępnia zestaw fiszek innemu użytkownikowi.
+   */
+  async share(
+    ownerId: string,
+    setId: string,
+    command: CreateShareCommand
+  ): Promise<ShareDTO> {
+    // 1. Sprawdź, czy zestaw należy do użytkownika i ma status 'accepted'
+    const { data: set, error: setError } = await this.supabase
+      .from("flashcards_set")
+      .select("status")
+      .eq("id", setId)
+      .eq("owner_id", ownerId)
+      .single();
+
+    if (setError || !set) {
+      throw new Error("Zestaw nie znaleziony lub brak uprawnień.");
+    }
+    if (set.status !== "accepted") {
+      throw new Error("Udostępniać można tylko zaakceptowane zestawy.");
+    }
+
+    // 2. Utwórz wpis w tabeli 'flashcards_set_shares'
+    const { data: share, error: shareError } = await this.supabase
+      .from("flashcards_set_shares")
+      .insert({
+        flashcards_set_id: setId,
+        user_id: command.userId,
+        role: command.role,
+        expires_at: command.expiresAt,
+      })
+      .select()
+      .single();
+
+    if (shareError) {
+      throw new Error(`Błąd podczas udostępniania zestawu: ${shareError.message}`);
+    }
+
+    return {
+      id: share.id,
+      setId: share.flashcards_set_id,
+      userId: share.user_id,
+      role: share.role,
+      createdAt: share.created_at,
+      expiresAt: share.expires_at,
+    };
+  }
+
+  /**
+   * Pobiera listę udostępnień dla danego zestawu.
+   */
+  async listShares(ownerId: string, setId: string): Promise<ShareDTO[]> {
+    // 1. Sprawdź, czy użytkownik jest właścicielem zestawu
+    const { count, error: checkError } = await this.supabase
+      .from("flashcards_set")
+      .select("id", { count: "exact" })
+      .eq("id", setId)
+      .eq("owner_id", ownerId);
+
+    if (checkError || count === 0) {
+      throw new Error("Zestaw nie znaleziony lub brak uprawnień.");
+    }
+    
+    // 2. Pobierz udostępnienia
+    const { data, error } = await this.supabase
+      .from("flashcards_set_shares")
+      .select("*")
+      .eq("flashcards_set_id", setId);
+
+    if (error) {
+      throw new Error(`Błąd podczas pobierania udostępnień: ${error.message}`);
+    }
+
+    return (data || []).map((share) => ({
+      id: share.id,
+      setId: share.flashcards_set_id,
+      userId: share.user_id,
+      role: share.role,
+      createdAt: share.created_at,
+      expiresAt: share.expires_at,
+    }));
+  }
+
+  /**
+   * Anuluje udostępnienie zestawu fiszek
+   */
+  async revokeShare(
+    ownerId: string,
+    setId: string,
+    shareId: string
+  ): Promise<void> {
+    // 1. Sprawdź, czy użytkownik jest właścicielem zestawu
+    const { count, error: checkError } = await this.supabase
+      .from("flashcards_set")
+      .select("id", { count: "exact" })
+      .eq("id", setId)
+      .eq("owner_id", ownerId);
+
+    if (checkError || count === 0) {
+      throw new Error("Zestaw nie znaleziony lub brak uprawnień.");
+    }
+
+    // 2. Usuń udostępnienie
+    const { error } = await this.supabase
+      .from("flashcards_set_shares")
+      .delete()
+      .eq("id", shareId)
+      .eq("flashcards_set_id", setId);
+
+    if (error) {
+      throw new Error(
+        `Błąd podczas anulowania udostępnienia: ${error.message}`
+      );
+    }
+  }
+
+  async isNameUnique(userId: string, name: string, setIdToExclude?: string): Promise<{ isUnique: boolean }> {
+    let query = this.supabase
+      .from("flashcards_set")
+      .select("id")
+      .eq("owner_id", userId)
+      .eq("name", name)
+      .limit(1);
+
+    if (setIdToExclude) {
+      query = query.not("id", "eq", setIdToExclude);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(`Błąd podczas sprawdzania unikalności nazwy: ${error.message}`);
+    }
+
+    return { isUnique: data.length === 0 };
+  }
+}
+
+// =================================================================================
+// Funkcje hooków - uproszczone wywołania dla komponentów React
+// =================================================================================
+
+import { createClient } from "@/utils/supabase/client";
+
+const getUserIdOrThrow = async (): Promise<string> => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("Użytkownik nie jest uwierzytelniony.");
+  }
+  return user.id;
+};
+
+const flashcardsSetService = new FlashcardsSetService(createClient());
+
+export const listFlashcardSets = (
+  page: number,
+  limit: number,
+  sortBy: string,
+  sortOrder: string,
+  status?: FlashcardsSetStatus,
+  nameSearch?: string
+) => {
+  return getUserIdOrThrow().then((userId) =>
+    flashcardsSetService.list(
+      userId,
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+      status,
+      nameSearch
+    )
+  );
+};
+
+export const createFlashcardsSet = (command: CreateFlashcardsSetCommand) => {
+  return getUserIdOrThrow().then((userId) =>
+    flashcardsSetService.create(userId, command)
+  );
+};
+
+export const getFlashcardsSetById = (setId: string) => {
+  return getUserIdOrThrow().then((userId) =>
+    flashcardsSetService.getById(userId, setId)
+  );
+};
+
+export const updateFlashcardsSet = (
+  setId: string,
+  command: UpdateFlashcardsSetCommand
+) => {
+  return getUserIdOrThrow().then((userId) =>
+    flashcardsSetService.update(userId, setId, command)
+  );
+};
+
+export const deleteFlashcardsSet = (setId: string) => {
+  return getUserIdOrThrow().then((userId) =>
+    flashcardsSetService.delete(userId, setId)
+  );
+};
+
+export const cloneFlashcardsSet = (
+  setId: string,
+  command: CloneFlashcardsSetCommand = {}
+) => {
+  return getUserIdOrThrow().then((userId) =>
+    flashcardsSetService.clone(userId, setId, command)
+  );
+};
+
+export const checkSetNameUnique = (name: string, setIdToExclude?: string) => {
+    return getUserIdOrThrow().then((userId) =>
+        flashcardsSetService.isNameUnique(userId, name, setIdToExclude)
+    );
 }

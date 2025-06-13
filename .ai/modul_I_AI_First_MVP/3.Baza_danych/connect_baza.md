@@ -7,6 +7,11 @@ Ten przewodnik krok po kroku opisuje, jak pobrać całą bazę danych (schemat i
 ### Krok 0: Wymagania wstępne
 
 Przed rozpoczęciem upewnij się, że masz zainstalowane:
+instalacja scoop 
+Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
+
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
 
 1.  **[Supabase CLI](https://supabase.com/docs/guides/cli/getting-started)**: Narzędzie do zarządzania projektami Supabase z wiersza poleceń.
     - _Uwaga:_ W trakcie naszej pracy napotkaliśmy problemy z instalacją przez `scoop`. Jeśli komenda `supabase` nie działa, odinstaluj ją całkowicie i zainstaluj ponownie:

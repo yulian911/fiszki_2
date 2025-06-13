@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "../../../../utils/supabase/server";
+import { FlashcardsSetService, isCurrentUserAdmin } from "../../../../features/flashcard-sets/services/FlashcardsSetService";
+import { updateFlashcardsSetCommandSchema } from "../../../../features/schemas/flashcardsSetSchemas";
+import { z } from "zod";
 
-
-import { createClient } from "@/utils/supabase/server";
-import { FlashcardsSetService } from "../../../../features/flashcard-sets/services/FlashcardsSetService";
-import {
-  idParamSchema,
-  updateFlashcardsSetSchema,
-} from "../../../../features/schemas/flashcardsSet";
+const setIdSchema = z.string().uuid();
 
 /**
  * Pobiera szczegóły pojedynczego zestawu fiszek
@@ -17,72 +15,25 @@ export async function GET(
   context: { params: Promise<{ setId: string }> }
 ) {
   try {
-    // Get and await params
     const params = await context.params;
-    
-    // Walidacja ID zestawu
-    const validatedParams = idParamSchema.safeParse({ setId: params.setId });
-
-    if (!validatedParams.success) {
-      return NextResponse.json(
-        {
-          error: "Nieprawidłowy identyfikator zestawu",
-          details: validatedParams.error.format(),
-        },
-        { status: 400 }
-      );
-    }
-
-    // Inicjalizacja klienta Supabase
-    const supabase = await createClient ();
-
-    // Pobranie danych użytkownika z sesji
-    const {
+    const supabase = await createClient();
+      const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (authError || !user) {
-      return NextResponse.json(
-        {
-          error: "Nieautoryzowany dostęp",
-          details:
-            authError?.message ||
-            "Musisz być zalogowany, aby wykonać tę operację",
-        },
-        { status: 401 }
-      );
+    const validation = setIdSchema.safeParse( params.setId);
+    if (!validation.success) {
+      return NextResponse.json({ error: "Invalid setId format" }, { status: 400 });
     }
 
-    // Inicjalizacja serwisu z uwierzytelnionym klientem
-    const flashcardsSetService = new FlashcardsSetService(supabase);
-
-    // Pobranie zestawu fiszek
-    try {
-      const result = await flashcardsSetService.getById(user.id, params.setId);
-      return NextResponse.json(result);
-    } catch (serviceError) {
-      // Obsługa błędu, gdy zestaw nie istnieje lub użytkownik nie ma do niego dostępu
-      if (
-        (serviceError as Error).message.includes("nie istnieje") ||
-        (serviceError as Error).message.includes("nie ma do niego dostępu")
-      ) {
-        return NextResponse.json(
-          {
-            error: "Zestaw nie został znaleziony",
-            details: (serviceError as Error).message,
-          },
-          { status: 404 }
-        );
-      }
-      throw serviceError; // Przekazanie innych błędów do głównej obsługi
-    }
+    const service = new FlashcardsSetService(supabase);
+    const flashcardSet = await service.getById(user.id, validation.data);
+    return NextResponse.json(flashcardSet);
   } catch (error) {
-    console.error("Błąd podczas pobierania zestawu fiszek:", error);
-    return NextResponse.json(
-      { error: "Wystąpił błąd serwera", details: (error as Error).message },
-      { status: 500 }
-    );
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+    return NextResponse.json({ error: "Internal Server Error", details: errorMessage }, { status: 500 });
   }
 }
 
@@ -95,102 +46,31 @@ export async function PUT(
   context: { params: Promise<{ setId: string }> }
 ) {
   try {
-    // Get and await params
     const params = await context.params;
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const setIdValidation = setIdSchema.safeParse(params.setId);
+    if (!setIdValidation.success) {
+      return NextResponse.json({ error: "Invalid setId format" }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const bodyValidation = updateFlashcardsSetCommandSchema.safeParse(body);
+    if (!bodyValidation.success) {
+      return NextResponse.json({ error: "Invalid request body", details: bodyValidation.error.format() }, { status: 400 });
+    }
     
-    // Walidacja ID zestawu
-    const validatedParams = idParamSchema.safeParse({ setId: params.setId });
+    // Sprawdź, czy użytkownik jest adminem
+    const isAdmin = await isCurrentUserAdmin(supabase);
 
-    if (!validatedParams.success) {
-      return NextResponse.json(
-        {
-          error: "Nieprawidłowy identyfikator zestawu",
-          details: validatedParams.error.format(),
-        },
-        { status: 400 }
-      );
-    }
-
-    // Inicjalizacja klienta Supabase
-    const supabase = await createClient ();
-
-    // Pobranie danych użytkownika z sesji
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        {
-          error: "Nieautoryzowany dostęp",
-          details:
-            authError?.message ||
-            "Musisz być zalogowany, aby wykonać tę operację",
-        },
-        { status: 401 }
-      );
-    }
-
-    // Inicjalizacja serwisu z uwierzytelnionym klientem
-    const flashcardsSetService = new FlashcardsSetService(supabase);
-
-    // Pobranie i walidacja danych z żądania
-    let requestData;
-    try {
-      requestData = await request.json();
-    } catch (parseError) {
-      return NextResponse.json(
-        {
-          error: "Nieprawidłowy format JSON",
-          details: "Przesłane dane nie są poprawnym JSON",
-        },
-        { status: 400 }
-      );
-    }
-
-    const validatedData = updateFlashcardsSetSchema.safeParse(requestData);
-
-    if (!validatedData.success) {
-      return NextResponse.json(
-        {
-          error: "Nieprawidłowe dane aktualizacji",
-          details: validatedData.error.format(),
-        },
-        { status: 400 }
-      );
-    }
-
-    // Aktualizacja zestawu fiszek
-    try {
-      const result = await flashcardsSetService.update(
-        user.id,
-        params.setId,
-        validatedData.data
-      );
-      return NextResponse.json(result);
-    } catch (serviceError) {
-      // Obsługa błędu, gdy zestaw nie istnieje lub użytkownik nie ma do niego dostępu
-      if (
-        (serviceError as Error).message.includes("nie istnieje") ||
-        (serviceError as Error).message.includes("nie ma do niego dostępu")
-      ) {
-        return NextResponse.json(
-          {
-            error: "Zestaw nie został znaleziony",
-            details: (serviceError as Error).message,
-          },
-          { status: 404 }
-        );
-      }
-      throw serviceError; // Przekazanie innych błędów do głównej obsługi
-    }
+    const service = new FlashcardsSetService(supabase);
+    const updatedSet = await service.update(user.id, setIdValidation.data, bodyValidation.data, isAdmin);
+    return NextResponse.json(updatedSet);
   } catch (error) {
-    console.error("Błąd podczas aktualizacji zestawu fiszek:", error);
-    return NextResponse.json(
-      { error: "Wystąpił błąd serwera", details: (error as Error).message },
-      { status: 500 }
-    );
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+    return NextResponse.json({ error: "Internal Server Error", details: errorMessage }, { status: 500 });
   }
 }
 
@@ -203,71 +83,21 @@ export async function DELETE(
   context: { params: Promise<{ setId: string }> }
 ) {
   try {
-    // Get and await params
     const params = await context.params;
-    
-    // Walidacja ID zestawu
-    const validatedParams = idParamSchema.safeParse({ setId: params.setId });
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!validatedParams.success) {
-      return NextResponse.json(
-        {
-          error: "Nieprawidłowy identyfikator zestawu",
-          details: validatedParams.error.format(),
-        },
-        { status: 400 }
-      );
+    const setIdValidation = setIdSchema.safeParse(params.setId);
+    if (!setIdValidation.success) {
+      return NextResponse.json({ error: "Invalid setId format" }, { status: 400 });
     }
 
-    // Inicjalizacja klienta Supabase
-    const supabase = await createClient ();
-
-    // Pobranie danych użytkownika z sesji
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        {
-          error: "Nieautoryzowany dostęp",
-          details:
-            authError?.message ||
-            "Musisz być zalogowany, aby wykonać tę operację",
-        },
-        { status: 401 }
-      );
-    }
-
-    // Inicjalizacja serwisu z uwierzytelnionym klientem
-    const flashcardsSetService = new FlashcardsSetService(supabase);
-
-    // Usunięcie zestawu fiszek
-    try {
-      await flashcardsSetService.delete(user.id, params.setId);
-      return new NextResponse(null, { status: 204 });
-    } catch (serviceError) {
-      // Obsługa błędu, gdy zestaw nie istnieje lub użytkownik nie ma do niego dostępu
-      if (
-        (serviceError as Error).message.includes("nie istnieje") ||
-        (serviceError as Error).message.includes("nie ma do niego dostępu")
-      ) {
-        return NextResponse.json(
-          {
-            error: "Zestaw nie został znaleziony",
-            details: (serviceError as Error).message,
-          },
-          { status: 404 }
-        );
-      }
-      throw serviceError; // Przekazanie innych błędów do głównej obsługi
-    }
+    const service = new FlashcardsSetService(supabase);
+    await service.delete(user.id, setIdValidation.data);
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
-    console.error("Błąd podczas usuwania zestawu fiszek:", error);
-    return NextResponse.json(
-      { error: "Wystąpił błąd serwera", details: (error as Error).message },
-      { status: 500 }
-    );
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+    return NextResponse.json({ error: "Internal Server Error", details: errorMessage }, { status: 500 });
   }
 }

@@ -11,6 +11,7 @@ import { FilterControlsComponent } from "@/features/flashcard-sets/components/Fi
 import { PaginationControlsComponent } from "@/features/flashcard-sets/components/PaginationControlsComponent";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useFlashcardSetFilters } from "@/features/flashcard-sets/hooks/useFlashcardSetFilters";
+import { useDeleteFlashcardSet } from "@/features/flashcard-sets/api/useMutateFlashcardSets";
 import { useCloneFlashcardSet } from "@/features/flashcard-sets/api/useCloneFlashcardSet";
 import { ConfirmDeleteModalComponent } from "@/features/flashcard-sets/components/ConfirmDeleteModalComponent";
 import { ShareSetModalComponent } from "@/features/flashcard-sets/components/ShareSetModalComponent";
@@ -53,7 +54,16 @@ export default function FlashcardsSetsListViewPage() {
   const { open: openEditModal } = useEditModalSet();
   const cloneMutation = useCloneFlashcardSet();
 
+  const handleViewDetails = useCallback(
+    (setId: string) => {
+      router.push(`/protected/sets/${setId}`);
+    },
+    [router]
+  );
+
   const handleEdit = (set: FlashcardsSetDTO) => {
+    // Otwiera modal edycji, który jest zintegrowany z `useEditModalSet`
+    // i parametrami URL. Możemy po prostu nawigować.
     router.push(`/protected/sets/${set.id}?edit-flashcard-set=${set.id}`);
   };
 
@@ -133,6 +143,7 @@ export default function FlashcardsSetsListViewPage() {
         )}
         <FlashcardsSetTableComponent
           sets={setsData.data}
+          onViewDetails={handleViewDetails}
           onEdit={handleEdit}
           onShare={handleShare}
           onDelete={handleDelete}
@@ -147,6 +158,7 @@ export default function FlashcardsSetsListViewPage() {
     setsData,
     isFetching,
     refetch,
+    handleViewDetails,
     openEditModal,
     filters,
     resetFilters,
@@ -203,7 +215,7 @@ export default function FlashcardsSetsListViewPage() {
             <DialogHeader>
               <DialogTitle>Udostępnij zestaw: {setToShare.name}</DialogTitle>
             </DialogHeader>
-            <ShareSetModalComponent onCancel={() => setSetToShare(null)} />
+            <ShareSetModalComponent onCancel={() => setSetToShare(null)} setId={setToShare.id} />
           </DialogContent>
         </Dialog>
       )}
