@@ -18,20 +18,7 @@ export interface UseGetFlashcardSetsParams {
 export const getFlashcardSetsQueryKey = (
   params: UseGetFlashcardSetsParams = {}
 ) => {
-  const {
-    page = 1,
-    limit = 10,
-    sortBy = "createdAt",
-    sortOrder = "desc",
-    status = "",
-    nameSearch = "",
-    view = "all",
-  } = params;
-
-  return [
-    FLASHCARD_SETS_QUERY_KEY,
-    { page, limit, sortBy, sortOrder, status, nameSearch, view },
-  ];
+  return [FLASHCARD_SETS_QUERY_KEY, params];
 };
 
 export const useGetFlashcardSets = (params: UseGetFlashcardSetsParams = {}) => {
@@ -48,15 +35,7 @@ export const useGetFlashcardSets = (params: UseGetFlashcardSetsParams = {}) => {
   } = params;
 
   return useQuery({
-    queryKey: getFlashcardSetsQueryKey({
-      page,
-      limit,
-      sortBy,
-      sortOrder,
-      status,
-      nameSearch,
-      view,
-    }),
+    queryKey: getFlashcardSetsQueryKey(params),
     queryFn: async (): Promise<PaginatedResponse<FlashcardsSetDTO>> => {
       try {
         const queryParams = new URLSearchParams();

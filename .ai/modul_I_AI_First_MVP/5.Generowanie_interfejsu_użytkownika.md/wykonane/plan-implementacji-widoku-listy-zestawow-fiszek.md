@@ -4,7 +4,7 @@
 
 Aplikacja zawiera dwa główne widoki do zarządzania zestawami fiszek:
 
-- **Lista Zestawów (`/protected/sets`):** Umożliwia użytkownikom przeglądanie, tworzenie, edytowanie, usuwanie, klonowanie i udostępnianie swoich zestawów fiszek.
+- **Lista Zestawów (`/protected/sets`):** Umożliwia użytkownikom przeglądanie, tworzenie, edytowanie, usuwanie, klonowanie i udostępnianie swoich zestawów fiszek. Obsługuje również widok zestawów udostępnionych przez innych użytkowników.
 - **Szczegóły Zestawu (`/protected/sets/[setId]`):** Pozwala na zarządzanie poszczególnymi fiszkami w ramach wybranego zestawu, w tym dodawanie (ręczne i z pomocą AI), edycję i usuwanie fiszek.
 
 Oba widoki są ze sobą zintegrowane i korzystają ze wspólnych komponentów, hooków i usług.
@@ -28,7 +28,9 @@ Logika biznesowa i komponenty UI są zorganizowane w podejściu "feature-sliced"
 │   │   ├── useGetFlashcardSetById.tsx
 │   │   ├── useCloneFlashcardSet.tsx
 │   │   ├── useShareSet.tsx
-│   │   └── ... (pozostałe hooki dla fiszek)
+│   │   ├── useGetFlashcards.tsx
+│   │   ├── useMutateFlashcards.tsx
+│   │   └── useGenerateFlashcardsSuggestions.tsx
 │   ├── /components (Komponenty UI)
 │   │   ├── FlashcardsSetTableComponent.tsx
 │   │   ├── FilterControlsComponent.tsx
@@ -38,11 +40,16 @@ Logika biznesowa i komponenty UI są zorganizowane w podejściu "feature-sliced"
 │   │   ├── ConfirmDeleteModalComponent.tsx
 │   │   ├── ShareSetModalComponent.tsx
 │   │   ├── SetDetailsHeader.tsx
+│   │   ├── ActionsButtonsGroup.tsx
 │   │   ├── FlashcardsListView.tsx
+│   │   ├── FlashcardsListFilters.tsx
+│   │   ├── BreadcrumbNavigation.tsx
 │   │   └── ... (pozostałe komponenty)
 │   ├── /hooks (Hooki do zarządzania stanem UI)
 │   │   ├── useFlashcardSetFilters.ts
-│   │   ├── useEditModal.tsx (zarządza modalami create/edit)
+│   │   ├── useEditModal.tsx (zarządza modalami create/edit przez URL)
+│   │   ├── useFlashcardModal.tsx (zarządza modalami dla fiszek przez URL)
+│   │   ├── useFlashcardFilters.ts
 │   │   └── ... (pozostałe hooki)
 │   └── /types.ts (Definicje typów TypeScript)
 ```
@@ -51,49 +58,49 @@ Logika biznesowa i komponenty UI są zorganizowane w podejściu "feature-sliced"
 
 ### 3.1. Opis
 
-Główny widok do zarządzania zestawami. Użytkownik widzi tabelę ze swoimi zestawami i ma możliwość filtrowania, sortowania i paginacji.
+Główny widok do zarządzania zestawami. Użytkownik widzi tabelę ze swoimi zestawami i ma możliwość filtrowania, sortowania i paginacji, a także przeglądania zestawów udostępnionych.
 
 ### 3.2. Kluczowe komponenty
 
 - **`FlashcardsSetsListViewPage` (`page.tsx`):** Główny kontener widoku.
-- **`FilterControlsComponent`:** Panel z filtrami (wyszukiwanie po nazwie, status). **Panel zostanie rozszerzony o przełącznik/zakładki do filtrowania widoku: "Wszystkie", "Moje zestawy", "Udostępnione dla mnie".**
-- **`FlashcardsSetTableComponent`:** Tabela wyświetlająca zestawy z akcjami. **Tabela zostanie zaktualizowana, aby:**
-  - **Wyświetlać kolumnę "Właściciel"** (pokazując "Ja" lub e-mail osoby udostępniającej).
-  - **Dynamicznie pokazywać akcje:**
-    - Dla zestawów własnych: Edytuj, Usuń, Klonuj, Udostępnij.
-    - Dla zestawów udostępnionych: **tylko akcja "Zapisz kopię u siebie" (klonowanie na własne konto) i "Ucz się" (przejście do widoku szczegółów).**
+- **`FilterControlsComponent`:** Panel z filtrami (wyszukiwanie po nazwie, status) oraz przyciskami do przełączania widoku: "Wszystkie", "Moje zestawy", "Udostępnione dla mnie".
+- **`FlashcardsSetTableComponent`:** Tabela wyświetlająca zestawy z akcjami. Tabela:
+  - **Wyświetla kolumnę "Właściciel"** (pokazując "Ja" lub e-mail osoby udostępniającej).
+  - **Dynamicznie pokazuje akcje w zależności od `accessLevel`:**
+    - Dla zestawów własnych (`owner`): Edytuj, Usuń, Klonuj, Udostępnij.
+    - Dla zestawów udostępnionych: **tylko akcja "Ucz się" (`onLearn`).** W aktualnej implementacji brakuje akcji "Zapisz kopię u siebie".
 - **`PaginationControlsComponent`:** Nawigacja między stronami.
 - **`EmptyStateSetsComponent`:** Wyświetlany, gdy brak zestawów (również z uwzględnieniem filtrów "Udostępnione dla mnie").
 - **Modale (`Dialog` z shadcn/ui):**
-  - Modal potwierdzenia usunięcia (`ConfirmDeleteModalComponent`).
-  - Modal udostępniania (`ShareSetModalComponent`).
+  - Modal potwierdzenia usunięcia (`ConfirmDeleteModalComponent`) jest renderowany w `page.tsx` i zarządzany lokalnym stanem.
+  - Modal udostępniania (`ShareSetModalComponent`) jest renderowany w `page.tsx` i zarządzany lokalnym stanem.
   - Modal tworzenia/edycji jest obsługiwany przez `OpenEditDeleteFlashcardSetModal` i parametry URL.
 
 ### 3.3. Zarządzanie stanem i danymi
 
-- **Filtry w URL:** Hook `useFlashcardSetFilters` zarządza stanem filtrów (strona, limit, sortowanie, status, nazwa) w parametrach URL przy użyciu biblioteki `nuqs`. **Zostanie rozszerzony o nowy parametr `view` (`all` | `owned` | `shared`).**
-- **Pobieranie danych:** Hook `useGetFlashcardsSets` (React Query) pobiera dane z API `GET /api/flashcards-sets`, przekazując aktualne filtry. **Komponenty będą wykorzystywać nowe pole `accessLevel` do renderowania warunkowego.**
+- **Filtry w URL:** Hook `useFlashcardSetFilters` zarządza stanem filtrów (strona, limit, sortowanie, status, nazwa, widok) w parametrach URL przy użyciu biblioteki `nuqs`. Posiada parametr `view` (`all` | `owned` | `shared`).
+- **Pobieranie danych:** Hook `useGetFlashcardsSets` (React Query) pobiera dane z API `GET /api/flashcards-sets`, przekazując aktualne filtry. Odpowiedź z API zawiera pole `accessLevel` (`owner` | `learner`), które jest wykorzystywane do renderowania warunkowego.
 - **Mutacje danych:**
   - `useMutateFlashcardSets` obsługuje tworzenie, edycję i usuwanie **własnych** zestawów.
-  - `useCloneFlashcardSet` obsługuje klonowanie. **Będzie używany zarówno do klonowania własnych zestawów, jak i tworzenia kopii zestawów udostępnionych.**
+  - `useCloneFlashcardSet` obsługuje klonowanie **własnych** zestawów.
 - **Obsługa modali:**
   - Tworzenie/edycja: `useEditModal` (`/hooks/useEditModal.tsx`) otwiera globalny modal przez zmianę parametrów URL.
-  - Usuwanie/udostępnianie: Komponent `page.tsx` zarządza lokalnym stanem (`useState`), który kontroluje widoczność modali `Dialog`.
+  - Usuwanie/udostępnianie: Komponent `page.tsx` zarządza lokalnym stanem (`useState`), który kontroluje widoczność odpowiednich modali opakowanych w komponent `Dialog`.
 
 ## 4. Widok: Szczegóły Zestawu Fiszki (`/protected/sets/[setId]`)
 
 ### 4.1. Opis
 
-Widok szczegółowy pojedynczego zestawu, koncentrujący się na zarządzaniu fiszkami.
+Widok szczegółowy pojedynczego zestawu, koncentrujący się na zarządzaniu fiszkami. **Uwaga: W aktualnej implementacji brakuje rozróżnienia na widok dla właściciela i osoby z dostępem do nauki. Akcje edycji i usuwania są widoczne dla wszystkich, co jest błędem.**
 
 ### 4.2. Kluczowe komponenty
 
 - **`FlashcardsSetDetailsPage` (`page.tsx`):** Główny kontener widoku.
 - **`BreadcrumbNavigation`:** Ścieżka powrotu do listy zestawów.
-- **`SetDetailsHeader`:** Wyświetla nazwę, status i przyciski akcji dla całego zestawu.
-- **`ActionsButtonsGroup`:** Przyciski "Dodaj fiszkę", "Generuj fiszki AI", "Udostępnij".
+- **`SetDetailsHeader`:** Wyświetla nazwę, status i przyciski akcji dla całego zestawu. **Błąd: Komponent nie sprawdza `accessLevel` i zawsze wyświetla przyciski "Edytuj zestaw" i "Usuń zestaw". Funkcja usuwania jest niezaimplementowana.**
+- **`ActionsButtonsGroup`:** Przyciski "Dodaj fiszkę", "Generuj fiszki AI", "Udostępnij". **Błąd: Komponent nie sprawdza `accessLevel` i nie implementuje funkcji "Wyślij kopię".**
 - **`FlashcardsListFilters`:** Filtry dla listy fiszek (wyszukiwanie, sortowanie).
-- **`FlashcardsListView`:** Lista fiszek z opcjami edycji/usunięcia.
+- **`FlashcardsListView`:** Lista fiszek z opcjami edycji/usunięcia. Obsługuje również stan pusty, gdy w zestawie nie ma fiszek.
 - **`OpenFlashcardModals`:** Komponent zarządzający otwieraniem modali dla fiszek (dodawanie, edycja, usuwanie, generowanie AI) w oparciu o parametry URL.
 
 ### 4.3. Zarządzanie stanem i danymi
@@ -109,27 +116,32 @@ Widok szczegółowy pojedynczego zestawu, koncentrujący się na zarządzaniu fi
 
 ### 5.1. Typy
 
-Kluczowe typy są zdefiniowane w `features/flashcard-sets/types.ts` oraz globalnie w `types.ts`. Główne z nich to:
+Kluczowe typy są zdefiniowane w `features/flashcard-sets/types.ts`, `features/schemas` oraz globalnie w `types.ts`. Główne z nich to:
 
 - `FlashcardsSetDTO`: Podstawowy obiekt transferu danych dla zestawu.
 - `FlashcardsSetFiltersViewModel`: Model widoku dla filtrów listy zestawów.
-- `FlashcardDTO`: Obiekt transferu danych dla pojedynczej fiszki.
+- `FlashcardDTO`: Obiekt transferu danych dla pojedynczej fiszki, używa pól `question` i `answer`.
 
 ### 5.2. Zarządzanie stanem globalnym (modale)
 
-Aplikacja wykorzystuje parametry URL jako główne źródło prawdy do zarządzania stanem modali (co ma być otwarte). Dedykowane hooki (`useEditModal`, `useFlashcardModal`) upraszczają operacje na tych parametrach, a specjalne komponenty (`Open...Modal`) w layoutach lub na stronach odczytują te parametry i renderują odpowiedni modal. To podejście zapewnia:
+Aplikacja wykorzystuje mieszane podejście do zarządzania stanem modali:
+
+- **Parametry URL** są głównym źródłem prawdy dla modali związanych z tworzeniem i edycją (zarówno zestawów, jak i fiszek). Dedykowane hooki (`useEditModal`, `useFlashcardModal`) upraszczają operacje na tych parametrach.
+- **Lokalny stan React (`useState`)** jest używany w `page.tsx` listy zestawów do kontrolowania widoczności modali usuwania i udostępniania.
+
+To podejście zapewnia:
 
 - Możliwość linkowania do konkretnej akcji (np. edycji zestawu).
-- Poprawne działanie przycisków "wstecz"/"dalej" w przeglądarce.
+- Poprawne działanie przycisków "wstecz"/"dalej" w przeglądarce dla akcji opartych na URL.
 
 ### 5.3. Interakcje z API
 
 Wszystkie interakcje z backendem są zamknięte w dedykowanych hookach React Query w katalogu `features/flashcard-sets/api`. Zapewnia to:
 
-- Centralizację logiki zapytań.
-- Automatyczne cachowanie, odświeżanie i unieważnianie danych.
-- Przejrzystą obsługę stanów ładowania i błędów w komponentach.
-- Zgodność z `flashcards-sets-api-plan.md`.
+- **Centralizację logiki zapytań**.
+- **Automatyczne cachowanie, odświeżanie i unieważnianie danych**.
+- **Przejrzystą obsługę stanów ładowania i błędów w komponentach**.
+- **Zgodność z `flashcards-sets-api-plan.md`.**
 
 ## 6. Obsługa błędów i stanów
 
@@ -143,18 +155,19 @@ Wszystkie interakcje z backendem są zamknięte w dedykowanych hookach React Que
 - **Opis komponentu**: Wyświetla szczegółowe informacje o zestawie i przyciski zarządzania.
 - **Główne elementy**: Nazwa zestawu, status, liczba fiszek, data utworzenia, przyciski akcji.
 - **Obsługiwane interakcje**:
-  - Kliknięcie "Edytuj zestaw" -> otwiera modal edycji zestawu (OpenEditDeleteFlashcardSetModal)
-  - Kliknięcie "Usuń zestaw" -> otwiera modal usunięcia zestawu
+  - Kliknięcie "Edytuj zestaw" -> otwiera modal edycji zestawu (`useEditModal`).
+  - Kliknięcie "Usuń zestaw" -> wywołuje niezaimplementowaną funkcję (`console.log`).
+- **Błąd implementacyjny:** Komponent nie sprawdza uprawnień (`accessLevel`) i zawsze renderuje przyciski akcji, nawet dla zestawów udostępnionych.
 
 ### `ActionsButtonsGroup`
 
-- **Opis komponentu**: Grupa przycisków do wykonywania akcji na zestawie.
-- **Główne elementy**: Przyciski dodawania fiszek, generowania AI, udostępniania i wysyłania kopii.
+- **Opis komponentu**: Grupa przycisków do wykonywania akcji na fiszkach w ramach zestawu.
+- **Główne elementy**: Przyciski "Dodaj fiszkę", "Generuj fiszki AI", "Udostępnij".
 - **Obsługiwane interakcje**:
-  - Kliknięcie "Dodaj fiszkę" -> otwiera modal `AddFlashcardManuallyModal`
-  - Kliknięcie "Generuj z AI" -> otwiera modal `GenerateFlashcardsAIModal`
-  - Kliknięcie "Udostępnij" -> otwiera modal `ShareSetModal` (udostępnianie tylko do odczytu)
-  - Kliknięcie "Wyślij kopię" -> otwiera modal `SendCopyModal` (klonowanie zestawu dla innego użytkownika)
+  - Kliknięcie "Dodaj fiszkę" -> otwiera modal `AddFlashcardManuallyModal` (przez `useFlashcardModal`).
+  - Kliknięcie "Generuj z AI" -> otwiera modal `GenerateFlashcardsAIModal` (przez `useFlashcardModal`).
+  - Kliknięcie "Udostępnij" -> otwiera modal `ShareSetModal` (przez `useFlashcardModal`).
+- **Brakujące funkcje:** W komponencie brakuje przycisku "Wyślij kopię" oraz logiki warunkowej opartej na `accessLevel`.
 
 ### `FlashcardsListFilters`
 
@@ -167,7 +180,7 @@ Wszystkie interakcje z backendem są zamknięte w dedykowanych hookach React Que
 
 ### `FlashcardsListView`
 
-- **Opis komponentu**: Wyświetla listę fiszek w wybranym zestawie z opcjami zarządzania.
+- **Opis komponentu**: Wyświetla listę fiszek w wybranym zestawie z opcjami zarządzania. Wewnętrznie obsługuje stan pusty, gdy brak fiszek.
 - **Główne elementy**: Karty lub wiersze tabeli z fiszkami, przyciski akcji.
 - **Obsługiwane interakcje**:
   - Wyświetlanie/ukrywanie tylnej strony fiszki
@@ -181,15 +194,14 @@ Wszystkie interakcje z backendem są zamknięte w dedykowanych hookach React Que
 
 ### `EmptyFlashcardsListComponent`
 
-- **Opis komponentu**: Wyświetlany, gdy zestaw nie zawiera żadnych fiszek.
-- **Główne elementy**: Ilustracja, tekst informacyjny, przyciski do dodania fiszek.
+- **Status**: Komponent nie istnieje. Jego funkcjonalność została zintegrowana wewnątrz `FlashcardsListView`.
 
 ### Modalne:
 
 #### `AddFlashcardManuallyModal`
 
 - **Opis komponentu**: Modal do ręcznego tworzenia nowej fiszki.
-- **Główne elementy**: Formularz z polami front/back, opcjami formatowania, przyciskami zapisz/anuluj.
+- **Główne elementy**: Formularz z polami `question`/`answer`, opcjami formatowania, przyciskami zapisz/anuluj.
 - **Integracja API**: Wykorzystuje mutację do tworzenia nowej fiszki.
 
 #### `GenerateFlashcardsAIModal`
@@ -214,22 +226,14 @@ Wszystkie interakcje z backendem są zamknięte w dedykowanych hookach React Que
 
 > **Uwaga:** Funkcja "udostępniania" w tym modalu dotyczy wyłącznie nadawania dostępu do wglądu i nauki. Nie pozwala ona na edycję oryginalnego zestawu przez inną osobę ani nie przekazuje praw własności.
 
-#### Nowa, oddzielna funkcjonalność: `SendCopyModal` (lub podobna nazwa)
+#### ~~`SendCopyModal`~~ (Niezaimplementowane)
 
-- **Opis komponentu**: Modal do wysłania **klona (kopii)** zestawu innemu użytkownikowi. Odbiorca otrzymuje w pełni edytowalną, niezależną kopię zestawu, a oryginalny zestaw pozostaje nienaruszony u właściciela.
-- **Główne elementy**:
-  - Input do wyszukania użytkownika po e-mail.
-  - Przycisk "Wyślij kopię".
-- **Obsługiwane interakcje**:
-  - Kliknięcie przycisku "Wyślij kopię" w `ActionsButtonsGroup` (np. pod nową ikoną "Kopiuj dla kogoś").
-  - Po wybraniu użytkownika i wysłaniu, odbiorca staje się właścicielem nowego, sklonowanego zestawu.
-- **Integracja API**:
-  - Wykorzystanie istniejącego lub stworzenie nowego endpointu, np. `POST /api/flashcards-sets/{setId}/clone` z opcjonalnym `targetUserId` w ciele, który klonuje zestaw dla wskazanego użytkownika.
+- **Status:** Ta funkcjonalność nie została zaimplementowana. W widoku listy zestawów brakuje przycisku "Zapisz kopię u siebie" dla udostępnionych zestawów, a w widoku szczegółów brakuje opcji "Wyślij kopię". Endpoint API `POST /api/flashcards-sets/{setId}/clone` z `targetUserId` nie jest wykorzystywany.
 
 #### `EditFlashcardModal`
 
 - **Opis komponentu**: Modal do edycji istniejącej fiszki.
-- **Główne elementy**: Formularz z polami front/back wypełniony danymi istniejącej fiszki.
+- **Główne elementy**: Formularz z polami `question`/`answer` wypełniony danymi istniejącej fiszki.
 - **Integracja API**: Wykorzystuje mutację do aktualizacji fiszki.
 
 #### `DeleteFlashcardModal`
@@ -243,52 +247,38 @@ Wszystkie interakcje z backendem są zamknięte w dedykowanych hookach React Que
 Implementacja będzie wykorzystywać istniejące oraz nowe typy zgodne ze strukturą API:
 
 ```typescript
-// Istniejące typy
+// Przykładowe typy na podstawie schematów Zod i implementacji
 import type { FlashcardsSetDTO } from "@/types";
 
-// Typy dla fiszek zgodne z API
+// Typy dla fiszek zgodne z API (używają question/answer)
 export interface FlashcardDTO {
   id: string;
-  setId: string;
-  front: string;
-  back: string;
+  flashcardsSetId: string;
+  question: string;
+  answer: string;
+  source: "ai-full" | "ai-edit" | "manual";
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateFlashcardCommand {
-  setId: string;
-  front: string;
-  back: string;
+  flashcardsSetId: string;
+  question: string;
+  answer: string;
 }
 
 export interface UpdateFlashcardCommand {
-  front?: string;
-  back?: string;
+  question?: string;
+  answer?: string;
 }
 
 // Filtrowanie fiszek
 export interface FlashcardsFiltersViewModel {
   page: number;
   limit: number;
-  sortBy?: "createdAt" | "front" | "back";
+  sortBy?: "createdAt" | "question";
   sortOrder?: "asc" | "desc";
   search?: string;
-}
-
-// Udostępnianie (jeśli będzie implementowane)
-export interface SetCollaboratorDTO {
-  id: string;
-  email: string;
-  role: "viewer" | "editor";
-  invitedAt: string;
-  status: "pending" | "accepted" | "rejected";
-}
-
-export interface InviteCollaboratorCommand {
-  setId: string;
-  email: string;
-  role: "viewer" | "editor";
 }
 ```
 
@@ -300,19 +290,20 @@ W implementacji wykorzystane zostaną:
 
   - `useGetFlashcardSetById` - pobieranie szczegółów zestawu
   - `useGetFlashcards` - pobieranie listy fiszek z paginacją i filtrami
-  - `useMutateFlashcards` - hook do operacji CRUD na fiszkach. **Sugestia:** Należy skonfigurować go do **optymistycznych aktualizacji**, aby UI reagowało natychmiast (np. usunięcie fiszki z listy od razu po kliknięciu), a ewentualny błąd API przywracał poprzedni stan i wyświetlał komunikat.
+  - `useMutateFlashcards` - hook do operacji CRUD na fiszkach. **Sugestia:** Należy skonfigurować go do **optymistycznych aktualizacji**, aby UI reagowało natychmiast.
   - `useGenerateFlashcardsSuggestions` - hook do generowania sugestii fiszek
 
-- **URL jako źródło prawdy dla filtrów fiszek**:
+- **URL jako źródło prawdy dla filtrów (nuqs)**:
 
-  - `useFlashcardFilters` - parametry filtrowania i paginacji w URL
+  - `useFlashcardSetFilters` - filtry dla listy zestawów
+  - `useFlashcardFilters` - filtry dla listy fiszek
 
-- **Parametry URL do zarządzania modalami**:
+- **Mieszane zarządzanie modalami**:
 
-  - `useFlashcardModal` - stan modali (dodawanie, edycja, usuwanie fiszek)
-  - Reużycie istniejącego `useEditModalSet` dla edycji zestawu
+  - **Parametry URL** dla modali tworzenia i edycji (`useEditModal`, `useFlashcardModal`).
+  - **Lokalny stan React** dla modali usuwania i udostępniania na liście zestawów.
 
-- **Debouncing dla wyszukiwania fiszek**
+- **Debouncing dla wyszukiwania**
 
 ## 7. Integracja API
 
@@ -327,21 +318,21 @@ Implementacja będzie korzystać z następujących endpointów zgodnych z istnie
   - `GET /api/flashcards?setId={setId}` - lista fiszek w zestawie z parametrami:
     - `page` - numer strony
     - `limit` - liczba elementów na stronę
-    - `sortBy` - pole sortowania (np. 'createdAt', 'front')
+    - `sortBy` - pole sortowania (np. 'createdAt', 'question')
     - `sortOrder` - kierunek sortowania ('asc' lub 'desc')
   - `POST /api/flashcards` - tworzenie nowej fiszki z body:
     ```json
     {
-      "setId": "uuid-zestawu",
-      "front": "treść przedniej strony",
-      "back": "treść tylnej strony"
+      "flashcardsSetId": "uuid-zestawu",
+      "question": "treść pytania",
+      "answer": "treść odpowiedzi"
     }
     ```
   - `PUT /api/flashcards/{flashcardId}` - aktualizacja fiszki z body:
     ```json
     {
-      "front": "nowa treść przedniej strony",
-      "back": "nowa treść tylnej strony"
+      "question": "nowa treść pytania",
+      "answer": "nowa treść odpowiedzi"
     }
     ```
   - `DELETE /api/flashcards/{flashcardId}` - usunięcie fiszki
@@ -359,7 +350,7 @@ Implementacja będzie korzystać z następujących endpointów zgodnych z istnie
   - `POST /api/flashcards-sets/{setId}/shares` - udostępnienie zestawu do wglądu.
   - `GET /api/flashcards-sets/{setId}/shares` - pobranie listy udostępnień.
   - `DELETE /api/flashcards-sets/{setId}/shares/{shareId}` - cofnięcie udostępnienia.
-  - `POST /api/flashcards-sets/{setId}/clone` - z opcjonalnym `targetUserId` w ciele, aby wysłać komuś kopię.
+  - `POST /api/flashcards-sets/{setId}/clone` - **nieużywane w UI** w kontekście wysyłania kopii innemu użytkownikowi. Klonowanie jest dostępne tylko dla własnych zestawów z poziomu listy.
 
 ## 8. Interakcje użytkownika
 
@@ -391,25 +382,17 @@ Zaimplementowane zostaną następujące przepływy:
 - **Edycja fiszki**:
 
   1. Kliknięcie "Edytuj" przy fiszce
-  2. Modyfikacja treści
+  2. Modyfikacja treści (`question`/`answer`)
   3. Zapisanie zmian
 
 - **Usuwanie fiszki**:
+
   1. Kliknięcie "Usuń" przy fiszce
   2. Potwierdzenie usunięcia
 
-## 9. Obsługa błędów i stanów
-
-Implementacja będzie zawierać kompleksową obsługę różnych stanów:
-
-- **Stan ładowania**:
-
-  - Skeletony podczas ładowania danych zestawu i fiszek
-  - Wskaźniki ładowania dla operacji na fiszkach
-
 - **Stan pusty**:
 
-  - Dedykowany widok gdy zestaw nie zawiera fiszek
+  - Dedykowany widok gdy zestaw nie zawiera fiszek (`EmptyStateSetsComponent` na liście zestawów, komunikat w `FlashcardsListView` w szczegółach).
   - Sugestie dodania pierwszej fiszki
 
 - **Brak wyników wyszukiwania**:
@@ -430,20 +413,20 @@ Implementacja będzie zawierać kompleksową obsługę różnych stanów:
 
 - **Responsywność**: Dostosowanie widoku do urządzeń mobilnych i desktopowych
 - **Konsystencja z listą zestawów**: Spójne wzorce UI/UX z widokiem listy
-- **Optymistyczne aktualizacje UI**: Natychmiastowa aktualizacja UI przed potwierdzeniem API
+- **Optymistyczne aktualizacje UI**: Natychmiastowa aktualizacja UI przed potwierdzeniem API (do weryfikacji/implementacji)
 - **Kontekstowe modale**: Odpowiednia zawartość modali zależna od kontekstu
 - **Formatowanie tekstu fiszek**: Podstawowe opcje formatowania treści
 - **Generowanie AI**: Intuicyjny interfejs do generowania fiszek z pomocą AI
 
-## 11. Testowanie (Nowa sekcja)
+## 11. Testowanie (Zgodnie ze standardami projektu)
 
 - **Strategia:** Wszystkie nowo tworzone komponenty, hooki oraz kluczowe funkcje logiki biznesowej powinny być objęte testami.
-- **Narzędzia:** Vitest i React Testing Library (zgodnie z przyjętymi w projekcie standardami).
+- **Narzędzia:** Vitest i React Testing Library.
 - **Zakres:**
   - **Testy jednostkowe:** Dla hooków (np. `useFlashcardFilters`), funkcji pomocniczych.
   - **Testy integracyjne/komponentowe:** Dla komponentów UI (np. `AddFlashcardManuallyModal`, `FlashcardsListView`), weryfikujące renderowanie, interakcje użytkownika i komunikację z mockowanym API.
 
-## 12. Dostępność (Accessibility - a11y) (Nowa sekcja)
+## 12. Dostępność (Accessibility - a11y) (Zgodnie ze standardami projektu)
 
 - **Cel:** Zapewnienie, że interfejs będzie użyteczny dla jak najszerszej grupy użytkowników, w tym osób z niepełnosprawnościami.
 - **Kluczowe aspekty do uwzględnienia:**

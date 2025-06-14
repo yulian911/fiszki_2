@@ -4,6 +4,7 @@ import type {
   UpdateFlashcardCommand,
   FlashcardDTO,
   PaginatedResponse,
+  CreateBulkFlashcardsCommand,
 } from "@/types";
 import {
   FLASHCARDS_QUERY_KEY,
@@ -11,13 +12,18 @@ import {
 } from "@/features/flashcard-sets/api/useGetFlashcards";
 
 // Helper to build list query key used in cache invalidations
-const getFlashcardsListQueryKey = (setId: string) => [FLASHCARDS_QUERY_KEY, setId];
+const getFlashcardsListQueryKey = (setId: string) => [
+  FLASHCARDS_QUERY_KEY,
+  setId,
+];
 
 export const useCreateFlashcard = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (command: CreateFlashcardCommand): Promise<FlashcardDTO> => {
+    mutationFn: async (
+      command: CreateFlashcardCommand
+    ): Promise<FlashcardDTO> => {
       const response = await fetch(`/api/flashcards`, {
         method: "POST",
         headers: {
@@ -28,14 +34,18 @@ export const useCreateFlashcard = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Failed to create flashcard (${response.status})`);
+        throw new Error(
+          errorData.message || `Failed to create flashcard (${response.status})`
+        );
       }
 
       return (await response.json()) as FlashcardDTO;
     },
     onSuccess: (data) => {
       // Optimistically update first page lists in cache
-      queryClient.invalidateQueries({ queryKey: [FLASHCARDS_QUERY_KEY, data.flashcardsSetId] });
+      queryClient.invalidateQueries({
+        queryKey: [FLASHCARDS_QUERY_KEY, data.flashcardsSetId],
+      });
     },
   });
 };
@@ -61,13 +71,17 @@ export const useUpdateFlashcard = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Failed to update flashcard (${response.status})`);
+        throw new Error(
+          errorData.message || `Failed to update flashcard (${response.status})`
+        );
       }
 
       return (await response.json()) as FlashcardDTO;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: [FLASHCARDS_QUERY_KEY, data.flashcardsSetId] });
+      queryClient.invalidateQueries({
+        queryKey: [FLASHCARDS_QUERY_KEY, data.flashcardsSetId],
+      });
     },
   });
 };
@@ -83,13 +97,48 @@ export const useDeleteFlashcard = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Failed to delete flashcard (${response.status})`);
+        // Use the specific error from the API response
+        throw new Error(
+          errorData.error || `Failed to delete flashcard (${response.status})`
+        );
       }
     },
-    onSuccess: (_, flashcardId) => {
-      // Note: We don't have setId here easily but invalidating all flashcards queries is okay
+    onSuccess: (data, variables) => {
+      // After successful deletion, invalidate queries to refetch the list
       queryClient.invalidateQueries({ queryKey: [FLASHCARDS_QUERY_KEY] });
-      queryClient.invalidateQueries({ queryKey: [FLASHCARDS_QUERY_KEY, flashcardId] });
     },
   });
-}; 
+};
+
+export const useCreateBulkFlashcards = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (
+      command: CreateBulkFlashcardsCommand
+    ): Promise<FlashcardDTO[]> => {
+      const response = await fetch(`/api/flashcards/bulk`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(command),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message ||
+            `Failed to create flashcards in bulk (${response.status})`
+        );
+      }
+
+      return (await response.json()) as FlashcardDTO[];
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [FLASHCARDS_QUERY_KEY, variables.flashcardsSetId],
+      });
+    },
+  });
+};

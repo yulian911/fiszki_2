@@ -15,6 +15,7 @@ type ResponsiveModalProps = {
   onOpenChange: (open: boolean) => void;
   title?: string;
   description?: string;
+  "data-testid"?: string;
 };
 
 export const ResponsiveModal = ({
@@ -23,9 +24,10 @@ export const ResponsiveModal = ({
   onOpenChange,
   title,
   description,
+  "data-testid": testId,
 }: ResponsiveModalProps) => {
   const isDesktop = useMedia("(min-width: 1024px)", true);
-  
+
   // Force document body to be non-interactive when modal is open
   useEffect(() => {
     if (open) {
@@ -35,7 +37,7 @@ export const ResponsiveModal = ({
       // When closed, restore scrolling
       document.body.style.overflow = "";
     }
-    
+
     // Cleanup when component unmounts
     return () => {
       document.body.style.overflow = "";
@@ -45,7 +47,7 @@ export const ResponsiveModal = ({
   if (isDesktop) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange} modal={true}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]" data-testid={testId}>
           {title && <DialogTitle>{title}</DialogTitle>}
           {description && <DialogDescription>{description}</DialogDescription>}
           {children}
@@ -53,10 +55,10 @@ export const ResponsiveModal = ({
       </Dialog>
     );
   }
-  
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
+      <DrawerContent data-testid={testId}>
         <div className="px-4 py-6 overflow-y-auto hide-scrollbar max-h-[85vh]">
           {title && <h2 className="text-xl font-semibold mb-2">{title}</h2>}
           {description && <p className="text-gray-500 mb-4">{description}</p>}

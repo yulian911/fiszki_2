@@ -7,6 +7,8 @@ import {
 } from "../../../features/schemas/flashcardsSetSchemas";
 import { rateLimit } from "../../../lib/rate-limit";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Pobieranie listy zestawów fiszek
  * GET /api/flashcards-sets

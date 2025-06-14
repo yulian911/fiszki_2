@@ -4,114 +4,89 @@ import { test, expect } from "@playwright/test";
 const E2E_EMAIL = process.env.E2E_EMAIL || "test@test.pl";
 const E2E_PASSWORD = process.env.E2E_PASSWORD || "Test123!";
 
-test("has correct starter template title", async ({ page }) => {
-  await page.goto("/");
+test.describe("App Navigation and Authentication", () => {
+  test("SCN_GEN_001: should display landing page content correctly", async ({
+    page,
+  }) => {
+    await page.goto("/");
 
-  // The app uses the starter template title
-  await expect(page).toHaveTitle(/Next\.js and Supabase Starter Kit/);
-});
+    // Verify landing page title and subtitle
+    await expect(page.getByTestId("landing-title")).toHaveText(
+      "Inteligentne Fiszki"
+    );
+    await expect(page.getByTestId("landing-subtitle")).toBeVisible();
 
-test("displays starter template content", async ({ page }) => {
-  await page.goto("/");
+    // Verify features section is present
+    await expect(page.getByTestId("features-title")).toHaveText(
+      "Odkryj kluczowe funkcje"
+    );
 
-  // Check that the starter template content is displayed using specific text match
-  await expect(page.getByText(/The fastest way to build apps/)).toBeVisible();
+    // Check for a few feature cards to ensure they are rendered
+    await expect(
+      page.getByTestId("feature-card-Generowanie-fiszek-z-AI")
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("feature-card-Inteligentne-powtórki-(SRS)")
+    ).toBeVisible();
+  });
 
-  // Check for specific link elements to avoid multiple matches
-  await expect(
-    page.getByRole("link", { name: "Supabase", exact: true }).first()
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Next.js", exact: true }).first()
-  ).toBeVisible();
-});
+  test("SCN_GEN_002: should allow user to sign in and redirect to dashboard", async ({
+    page,
+  }) => {
+    await page.goto("/sign-in");
 
-test("can navigate to sign-in page directly", async ({ page }) => {
-  // Navigate directly to sign-in page since there's no link on home page
-  await page.goto("/sign-in");
+    // Start waiting for navigation before clicking the button
+    const navigationPromise = page.waitForURL("**/protected", {
+      timeout: 15000,
+    });
 
-  // Verify sign-in form elements are present
-  await expect(page.getByLabel("Email")).toBeVisible();
-  await expect(page.getByLabel("Hasło")).toBeVisible();
-  await expect(page.getByRole("button", { name: /zaloguj/i })).toBeVisible();
-});
+    // Fill in the login form and click
+    await page.getByTestId("email-input").fill(E2E_EMAIL);
+    await page.getByTestId("password-input").fill(E2E_PASSWORD);
+    await page.getByTestId("login-button").click();
 
-test("can sign in with valid credentials", async ({ page }) => {
-  await page.goto("/sign-in");
+    // Wait for the navigation to complete
+    await navigationPromise;
 
-  // Fill in the login form with real test credentials
-  await page.getByLabel("Email").fill(E2E_EMAIL);
-  await page.getByLabel("Hasło").fill(E2E_PASSWORD);
+    // Verify we are on the dashboard
+    await expect(
+      page.getByRole("heading", { name: "Panel główny" })
+    ).toBeVisible({ timeout: 10000 });
 
-  // Click the submit button
-  await page.getByRole("button", { name: /zaloguj/i }).click();
+    console.log("Login test SCN_GEN_002 completed successfully!");
+  });
 
-  // Expect to be redirected to protected area
-  await expect(page).toHaveURL(/\/protected/);
+  test("SCN_GEN_003: should redirect unauthenticated user to sign-in page", async ({
+    page,
+  }) => {
+    // Try to access a protected page directly
+    await page.goto("/protected/sets");
 
-  // Verify user is logged in by checking for logout button
-  await expect(page.getByRole("button", { name: /wyloguj/i })).toBeVisible();
-});
+    // Should be redirected to the sign-in page
+    await expect(page).toHaveURL(/.*sign-in/);
+    await expect(page.getByLabel("Email")).toBeVisible();
+  });
 
-test("can navigate to sets page when logged in", async ({ page }) => {
-  // First log in
-  await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(E2E_EMAIL);
-  await page.getByLabel("Hasło").fill(E2E_PASSWORD);
-  await page.getByRole("button", { name: /zaloguj/i }).click();
+  test("SCN_GEN_004: can navigate to sets page when logged in", async ({
+    page,
+  }) => {
+    // First, log in using the reliable method
+    await page.goto("/sign-in");
+    await page.getByTestId("email-input").fill(E2E_EMAIL);
+    await page.getByTestId("password-input").fill(E2E_PASSWORD);
+    await page.getByTestId("login-button").click();
 
-  // Wait for redirect to protected area
-  await expect(page).toHaveURL(/\/protected/);
+    // Wait for login to complete by waiting for the dashboard to be ready
+    await page.waitForURL(/\/protected/, { timeout: 15000 });
+    await expect(page.getByTestId("sets-link")).toBeVisible({ timeout: 15000 });
 
-  // Click on "Zestawy fiszek" button in the dashboard
-  await page.getByRole("link", { name: /zestawy fiszek/i }).click();
+    // Navigate to the sets page
+    await page.getByTestId("sets-link").click();
+    await page.waitForURL(/\/protected\/sets/, { timeout: 15000 });
 
-  // Verify we're on the sets page
-  await expect(page).toHaveURL(/\/protected\/sets/);
-
-  // Verify we can see the create button (indicating we're on the sets page)
-  await expect(
-    page.getByRole("button", { name: /utwórz nowy zestaw|utwórz|nowy zestaw/i })
-  ).toBeVisible();
-});
-
-test("redirects to sign-in when accessing protected page without login", async ({
-  page,
-}) => {
-  // Try to access protected page directly
-  await page.goto("/protected/sets");
-
-  // Should be redirected to sign-in page
-  await expect(page).toHaveURL(/.*sign-in/);
-
-  // Verify we see the sign-in form
-  await expect(page.getByLabel("Email")).toBeVisible();
-  await expect(page.getByLabel("Hasło")).toBeVisible();
-});
-
-test("protected dashboard displays expected content", async ({ page }) => {
-  // First log in
-  await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(E2E_EMAIL);
-  await page.getByLabel("Hasło").fill(E2E_PASSWORD);
-  await page.getByRole("button", { name: /zaloguj/i }).click();
-
-  // Wait for redirect to protected area
-  await expect(page).toHaveURL(/\/protected/);
-
-  // Verify dashboard content
-  await expect(page.getByText(/Protected Dashboard/)).toBeVisible();
-  await expect(page.getByText(/Fiszki do powtórki dzisiaj/)).toBeVisible();
-  await expect(page.getByText(/Łączna liczba fiszek/)).toBeVisible();
-
-  // Verify action buttons are present with correct text
-  await expect(
-    page.getByRole("button", { name: /start new session/i })
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: /generuj fiszki ai/i })
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: /zestawy fiszek/i })
-  ).toBeVisible();
+    // Verify we are on the sets page
+    await expect(page.getByTestId("create-set-button")).toBeVisible({
+      timeout: 15000,
+    });
+  });
 });

@@ -39,19 +39,50 @@ export const updateSession = async (request: NextRequest) => {
     // https://supabase.com/docs/guides/auth/server-side/nextjs
     const { data, error } = await supabase.auth.getUser();
 
+    // Debug logging for protected routes
+    if (request.nextUrl.pathname.startsWith("/protected")) {
+      console.log(
+        "🔍 Middleware checking protected route:",
+        request.nextUrl.pathname
+      );
+      console.log(
+        "🍪 Request cookies:",
+        request.cookies
+          .getAll()
+          .map((c) => `${c.name}=${c.value.slice(0, 20)}...`)
+      );
+      console.log(
+        "👤 User data:",
+        data.user ? `User ID: ${data.user.id}` : "No user"
+      );
+      console.log("❌ Auth error:", error?.message || "No error");
+    }
+
     // Dla żądań API, upewnij się, że odpowiedź zawiera nagłówki autoryzacji
     if (request.nextUrl.pathname.startsWith("/api/")) {
-      // Sprawdź, czy użytkownik jest zalogowany dla zapytań do API
-      if (error || !data.user) {
-        // Jeśli brak autoryzacji i to POST/PUT/DELETE - zwróć 401
-        if (["POST", "PUT", "DELETE"].includes(request.method)) {
-          return NextResponse.json(
-            {
-              error: "Nieautoryzowany dostęp",
-              details: "Musisz być zalogowany, aby wykonać tę operację.",
-            },
-            { status: 401 }
-          );
+      // Wyklucz endpointy autoryzacji z sprawdzania
+      const authEndpoints = [
+        "/api/auth/signin",
+        "/api/auth/signup",
+        "/api/auth/callback",
+      ];
+      const isAuthEndpoint = authEndpoints.some((endpoint) =>
+        request.nextUrl.pathname.startsWith(endpoint)
+      );
+
+      if (!isAuthEndpoint) {
+        // Sprawdź, czy użytkownik jest zalogowany dla zapytań do API (poza autoryzacją)
+        if (error || !data.user) {
+          // Jeśli brak autoryzacji i to POST/PUT/DELETE - zwróć 401
+          if (["POST", "PUT", "DELETE"].includes(request.method)) {
+            return NextResponse.json(
+              {
+                error: "Nieautoryzowany dostęp",
+                details: "Musisz być zalogowany, aby wykonać tę operację.",
+              },
+              { status: 401 }
+            );
+          }
         }
       }
 
@@ -61,10 +92,12 @@ export const updateSession = async (request: NextRequest) => {
 
     // protected routes
     if (request.nextUrl.pathname.startsWith("/protected") && !data.user) {
+      console.log("🚫 Redirecting to sign-in due to no user");
       return NextResponse.redirect(new URL("/sign-in", request.url));
     }
 
     if (request.nextUrl.pathname === "/" && data.user) {
+      console.log("🏠 Redirecting authenticated user to protected area");
       return NextResponse.redirect(new URL("/protected", request.url));
     }
 

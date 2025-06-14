@@ -122,7 +122,7 @@ export interface CreateFlashcardsSetCommand {
  */
 export type UpdateFlashcardsSetCommand = Partial<
   Pick<FlashcardsSetDTO, "name" | "status" | "description">
->;
+> & { description?: string | null };
 
 /**
  * Komenda klonowania istniejącego zestawu fiszek
@@ -171,6 +171,17 @@ export interface CreateFlashcardCommand {
   source: "manual";
   tags: string[];
   hint?: string;
+}
+
+/**
+ * Komenda tworzenia wielu fiszek (bulk)
+ */
+export interface CreateBulkFlashcardsCommand {
+  flashcardsSetId: string;
+  flashcards: {
+    question: string;
+    answer: string;
+  }[];
 }
 
 /**

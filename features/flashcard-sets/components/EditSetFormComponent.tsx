@@ -22,11 +22,14 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import type { FlashcardsSetDTO, FlashcardsSetStatus } from "@/types";
-import { useGetFlashCardsSetId } from "../api/useGetFlashcardSetsId";
+import { useGetFlashcardSetById } from "../api/useGetFlashcardSets";
 import { useUpdateFlashcardSet } from "../api/useMutateFlashcardSets";
 import { Textarea } from "@/components/ui/textarea";
 import { useDebounce } from "@/hooks/use-debounce";
 import { checkSetNameUnique } from "../services/FlashcardsSetService";
+import { useQueryClient } from "@tanstack/react-query";
+import { FLASHCARD_SETS_QUERY_KEY } from "../api/useGetFlashcardSets";
+import { toast } from "sonner";
 
 const flashcardsSetStatusEnum = z.enum(["pending", "accepted", "rejected"]);
 
@@ -63,8 +66,9 @@ export function EditSetFormComponent({
     data: flashcardSet,
     isLoading,
     error,
-  } = useGetFlashCardsSetId({ flashcardSetId });
+  } = useGetFlashcardSetById(flashcardSetId);
   const { mutate: updateSet, isPending } = useUpdateFlashcardSet();
+  const queryClient = useQueryClient();
 
   const form = useForm<EditSetFormValues>({
     resolver: zodResolver(formSchema),
@@ -136,7 +140,11 @@ export function EditSetFormComponent({
     updateSet(
       { setId: flashcardSetId, command: values },
       {
-        onSuccess: () => {
+        onSuccess: (data) => {
+          toast.success(`Zestaw "${values.name}" został zaktualizowany.`);
+          queryClient.invalidateQueries({
+            queryKey: [FLASHCARD_SETS_QUERY_KEY],
+          });
           onCancel();
         },
       }
@@ -173,6 +181,7 @@ export function EditSetFormComponent({
                   {...field}
                   disabled={isPending}
                   autoFocus
+                  data-testid="set-name-input"
                 />
               </FormControl>
               <FormMessage />
@@ -224,6 +233,7 @@ export function EditSetFormComponent({
                   {...field}
                   value={field.value || ""}
                   disabled={isPending}
+                  data-testid="set-description-input"
                 />
               </FormControl>
               <FormMessage />
@@ -231,7 +241,7 @@ export function EditSetFormComponent({
           )}
         />
 
-        <div className="flex justify-end space-x-3 pt-2">
+        <div className="flex justify-end gap-2">
           <Button
             type="button"
             variant="outline"
@@ -240,12 +250,12 @@ export function EditSetFormComponent({
           >
             Anuluj
           </Button>
-          <Button type="submit" disabled={isSubmitDisabled}>
-            {isPending
-              ? "Zapisywanie..."
-              : isCheckingName
-                ? "Sprawdzanie..."
-                : "Zapisz zmiany"}
+          <Button
+            type="submit"
+            disabled={isPending}
+            data-testid="save-set-button"
+          >
+            {isPending ? "Zapisywanie..." : "Zapisz zmiany"}
           </Button>
         </div>
       </form>

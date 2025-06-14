@@ -9,6 +9,9 @@ import { GenerateFlashcardsAIModalComponent } from "@/features/flashcard-sets/co
 import { ShareSetModalComponent } from "@/features/flashcard-sets/components/ShareSetModalComponent";
 import React from "react";
 import { useParams } from "next/navigation";
+import { useCreateBulkFlashcards } from "../api/useMutateFlashcards";
+import { toast } from "sonner";
+import { AISuggestionDTO } from "@/types";
 
 export default function OpenFlashcardModals() {
   const params = useParams<{ setId: string }>();
@@ -27,9 +30,36 @@ export default function OpenFlashcardModals() {
     closeShare,
   } = useFlashcardModal();
 
+  const createBulkFlashcards = useCreateBulkFlashcards();
+
+  const handleAcceptSuggestions = (suggestions: AISuggestionDTO[]) => {
+    createBulkFlashcards.mutate(
+      {
+        flashcardsSetId: setId,
+        flashcards: suggestions.map((s) => ({
+          question: s.question,
+          answer: s.answer,
+        })),
+      },
+      {
+        onSuccess: () => {
+          toast.success("Fiszki zostały dodane");
+          closeGenerateAI();
+        },
+        onError: (error) => {
+          toast.error("Błąd zapisu", { description: error.message });
+        },
+      }
+    );
+  };
+
   // Determine which modal is active
   const isModalOpen =
-    !!isCreateOpen || !!editFlashcardId || !!deleteFlashcardId || !!isGenerateAIOpen || !!isShareOpen;
+    !!isCreateOpen ||
+    !!editFlashcardId ||
+    !!deleteFlashcardId ||
+    !!isGenerateAIOpen ||
+    !!isShareOpen;
 
   let title = "";
   let description = "";
@@ -39,24 +69,39 @@ export default function OpenFlashcardModals() {
   if (isCreateOpen) {
     title = "Dodaj nową fiszkę";
     description = "Uzupełnij pytanie i odpowiedź";
-    content = <AddFlashcardFormComponent setId={setId} onCancel={closeCreate} />;
+    content = (
+      <AddFlashcardFormComponent setId={setId} onCancel={closeCreate} />
+    );
     onClose = closeCreate;
   } else if (editFlashcardId) {
     title = "Edytuj fiszkę";
     description = "Zmień treść fiszki";
-    content = <EditFlashcardFormComponent flashcardId={editFlashcardId} onCancel={closeEdit} />;
+    content = (
+      <EditFlashcardFormComponent
+        flashcardId={editFlashcardId}
+        onCancel={closeEdit}
+      />
+    );
     onClose = closeEdit;
   } else if (deleteFlashcardId) {
     title = "Usuń fiszkę";
     description = "Potwierdź usunięcie";
     content = (
-      <ConfirmDeleteFlashcardComponent flashcardId={deleteFlashcardId} onCancel={closeDelete} />
+      <ConfirmDeleteFlashcardComponent
+        flashcardId={deleteFlashcardId}
+        onCancel={closeDelete}
+      />
     );
     onClose = closeDelete;
   } else if (isGenerateAIOpen) {
     title = "Generuj fiszki z AI";
     description = "Podaj tekst do analizy";
-    content = <GenerateFlashcardsAIModalComponent onCancel={closeGenerateAI} onAccept={closeGenerateAI} />;
+    content = (
+      <GenerateFlashcardsAIModalComponent
+        onCancel={closeGenerateAI}
+        onAccept={handleAcceptSuggestions}
+      />
+    );
     onClose = closeGenerateAI;
   } else if (isShareOpen) {
     title = "Udostępnij zestaw";
@@ -68,8 +113,13 @@ export default function OpenFlashcardModals() {
   if (!isModalOpen || !content) return null;
 
   return (
-    <ResponsiveModal open={isModalOpen} onOpenChange={onClose} title={title} description={description}>
+    <ResponsiveModal
+      open={isModalOpen}
+      onOpenChange={onClose}
+      title={title}
+      description={description}
+    >
       {content}
     </ResponsiveModal>
   );
-} 
+}

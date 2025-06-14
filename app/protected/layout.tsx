@@ -30,7 +30,7 @@ const LayoutProtected = async ({ children }: { children: React.ReactNode }) => {
         </section>
       </div>
 
-      <ToastProvider />
+      {/* <ToastProvider /> */}
     </main>
   );
 };

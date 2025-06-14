@@ -7,11 +7,10 @@ Ten przewodnik krok po kroku opisuje, jak pobrać całą bazę danych (schemat i
 ### Krok 0: Wymagania wstępne
 
 Przed rozpoczęciem upewnij się, że masz zainstalowane:
-instalacja scoop 
+instalacja scoop
 Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
 
 Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-
 
 1.  **[Supabase CLI](https://supabase.com/docs/guides/cli/getting-started)**: Narzędzie do zarządzania projektami Supabase z wiersza poleceń.
     - _Uwaga:_ W trakcie naszej pracy napotkaliśmy problemy z instalacją przez `scoop`. Jeśli komenda `supabase` nie działa, odinstaluj ją całkowicie i zainstaluj ponownie:
@@ -47,7 +46,7 @@ Otwórz terminal (np. PowerShell) w folderze swojego projektu.
 3.  **Połącz lokalny folder ze zdalnym projektem:**
     Użyj poniższej komendy, podmieniając `<id-projektu>` na swój identyfikator.
     ```bash
-    supabase link --project-ref <id-projektu>
+    supabase link --project-ref surfqiladpgaksipotns
     ```
     - Zostaniesz poproszony o hasło. **Ważne:** Podaj hasło do **bazy danych**, a nie do konta Supabase. Znajdziesz je (lub zresetujesz) w panelu projektu w **Settings -> Database**.
 

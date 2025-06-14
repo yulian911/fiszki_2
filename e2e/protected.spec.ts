@@ -1,203 +1,143 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect, type Page, type Response } from "@playwright/test";
 
-// Load environment variables for test user credentials
-const E2E_EMAIL = process.env.E2E_EMAIL || "test@example.com";
-const E2E_PASSWORD = process.env.E2E_PASSWORD || "testpassword";
-
-// Helper function to log in before tests
-async function login(page: Page) {
-  await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(E2E_EMAIL);
-  await page.getByLabel("Hasło").fill(E2E_PASSWORD);
-  await page.getByRole("button", { name: /Zaloguj/i }).click();
-
-  // Wait for protected page to load
-  await expect(page).toHaveURL(/\/protected/);
-}
+const E2E_EMAIL = process.env.E2E_EMAIL || "test@test.pl";
+const E2E_PASSWORD = process.env.E2E_PASSWORD || "Test123!";
+const E2E_USERNAME = process.env.E2E_USERNAME || "test";
 
 test.describe("Protected Area Functionality", () => {
-  // Run login before each test
+  // Log in before each test in this describe block
   test.beforeEach(async ({ page }) => {
-    await login(page);
-  });
+    await page.goto("/sign-in");
 
-  // SCN_PROT_001: Create new flashcard set
-  test("SCN_PROT_001: should create a new flashcard set", async ({ page }) => {
+    const navigationPromise = page.waitForURL("**/protected", {
+      timeout: 15000,
+    });
+
+    await page.getByTestId("email-input").fill(E2E_EMAIL);
+    await page.getByTestId("password-input").fill(E2E_PASSWORD);
+    await page.getByTestId("login-button").click();
+
+    await navigationPromise;
+
+    // Verify we are on the dashboard
+    await expect(
+      page.getByRole("heading", { name: "Panel główny" })
+    ).toBeVisible();
+
+    // Navigate to the sets page to be ready for the tests
     await page.goto("/protected/sets");
+    await expect(
+      page.getByRole("heading", { name: "Moje Zestawy Fiszek" })
+    ).toBeVisible();
 
-    // Generate unique set name to avoid conflicts
-    const setName = `Test Set ${Date.now()}`;
-
-    // Click on create new set button
-    await page
-      .getByRole("button", { name: /utwórz nowy zestaw|utwórz|nowy zestaw/i })
-      .click();
-
-    // Wait for modal to open and use more specific selectors
-    await page.waitForSelector('[role="dialog"], [role="complementary"]');
-
-    // Fill in the form using modal context + label selectors
-    const modal = page
-      .locator('[role="dialog"], [role="complementary"]')
-      .filter({ hasText: "Utwórz nowy zestaw fiszek" });
-    await modal.getByLabel("Nazwa zestawu").first().fill(setName);
-    await modal
-      .getByLabel("Opis (opcjonalnie)")
-      .first()
-      .fill("Test description for E2E testing");
-    await page.getByRole("button", { name: /Utwórz|Tworzenie/ }).click();
-
-    // Wait for modal to close and list to refresh
-    await page.waitForTimeout(1000);
-
-    // Verify set was created and appears in the list
-    await expect(page.locator(`text="${setName}"`)).toHaveCount(2);
-
-    // Find and click edit button for our specific set - use row context
-    // Since filtering doesn't work well, find the row with exact text match for table cells
-    const tableRow = page
-      .locator("tr")
-      .filter({ has: page.locator(`button[title="${setName}"]`) });
-    await tableRow.getByRole("button", { name: "Edytuj" }).click();
-
-    // Wait for edit modal and update the set details
-    await page.waitForSelector('[role="dialog"], [role="complementary"]');
-    const editModal = page
-      .locator('[role="dialog"], [role="complementary"]')
-      .filter({ hasText: "Edytuj zestaw fiszek" });
-    const updatedName = `${setName} (Updated)`;
-
-    // Clear and fill the name field
-    await editModal.getByLabel("Nazwa zestawu").first().clear();
-    await editModal.getByLabel("Nazwa zestawu").first().fill(updatedName);
-
-    // Clear and fill the description field
-    await editModal.getByLabel("Opis (opcjonalnie)").first().clear();
-    await editModal
-      .getByLabel("Opis (opcjonalnie)")
-      .first()
-      .fill("Updated description");
-
-    // Submit the form by clicking save button
-    await page.getByRole("button", { name: "Zapisz zmiany" }).click();
-
-    // Wait for update to complete and modal to close
-    await page.waitForTimeout(3000);
-
-    // Verify the changes are reflected (skip modal check for now)
-    await expect(page.locator(`text="${updatedName}"`)).toHaveCount(2); // Should appear in both mobile and desktop views
+    // Dynamically override react-query's client for test environment
+    await page.evaluate(() => {
+      const testWindow = window as any;
+      if (testWindow.browserQueryClient) {
+        console.log("Overriding react-query client for tests...");
+        const queryClient = testWindow.browserQueryClient;
+        queryClient.setDefaultOptions({
+          queries: {
+            retry: false,
+            staleTime: 0,
+            gcTime: 0, // Invalidate cache immediately
+          },
+          mutations: {
+            retry: false,
+          },
+        });
+        console.log("React-query client overridden.");
+      } else {
+        console.error("Could not find browserQueryClient to override.");
+      }
+    });
   });
 
-  // SCN_PROT_002: Edit existing flashcard set
-  test("SCN_PROT_002: should edit an existing flashcard set", async ({
+  // Helper function to create a set
+  async function createSet(page: Page, setName: string): Promise<string> {
+    const responsePromise = page.waitForResponse(
+      (response: Response) =>
+        response.url().includes("/api/flashcards-sets") &&
+        response.status() === 201 &&
+        response.request().method() === "POST"
+    );
+
+    await page.getByTestId("create-set-button").click();
+
+    const modal = page.getByTestId("create-set-modal");
+    await expect(modal).toBeVisible();
+
+    await modal.getByTestId("set-name-input").fill(setName);
+    await modal
+      .getByTestId("set-description-input")
+      .fill(`Description for ${setName}`);
+    await modal.getByTestId("save-set-button").click();
+
+    const response = await responsePromise;
+    const responseBody = await response.json();
+    const setId = responseBody.id;
+
+    await expect(
+      page.locator(`[data-testid*="set-row-"]`).filter({ hasText: setName })
+    ).toBeVisible({ timeout: 15000 });
+
+    console.log(`Set "${setName}" (ID: ${setId}) successfully created.`);
+    return setId;
+  }
+
+  test("SCN_PROT_001: should create and edit a flashcard set", async ({
     page,
   }) => {
-    await page.goto("/protected/sets");
+    const setName = `Test Set ${Date.now()}`;
+    const updatedSetName = `Updated Set ${Date.now()}`;
 
-    // First, create a set if needed
-    const setName = `Edit Test Set ${Date.now()}`;
-    await page
-      .getByRole("button", { name: /utwórz nowy zestaw|utwórz|nowy zestaw/i })
-      .click();
+    const setId = await createSet(page, setName);
 
-    // Wait for modal and fill creation form
-    await page.waitForSelector('[role="dialog"], [role="complementary"]');
-    const createModal = page
-      .locator('[role="dialog"], [role="complementary"]')
-      .filter({ hasText: "Utwórz nowy zestaw fiszek" });
-    await createModal.getByLabel("Nazwa zestawu").first().fill(setName);
-    await createModal
-      .getByLabel("Opis (opcjonalnie)")
-      .first()
-      .fill("Original description");
-    await page.getByRole("button", { name: /Utwórz|Tworzenie/ }).click();
+    const setRow = page.locator(`[data-testid="set-row-${setId}"]`);
+    await setRow.getByTestId(`edit-set-desktop-${setId}`).click();
 
-    // Wait for creation to complete
-    await page.waitForTimeout(1000);
+    const editResponsePromise = page.waitForResponse(
+      (response: Response) =>
+        response.url().includes(`/api/flashcards-sets/${setId}`) &&
+        response.status() === 200 &&
+        response.request().method() === "PUT"
+    );
 
-    // Find edit button for our specific set
-    const tableRow = page
-      .locator("tr")
-      .filter({ has: page.locator(`button[title="${setName}"]`) });
-    await tableRow.getByRole("button", { name: "Edytuj" }).click();
+    const editModal = page.getByTestId("edit-set-modal");
+    await expect(editModal).toBeVisible();
+    await editModal.getByTestId("set-name-input").clear();
+    await editModal.getByTestId("set-name-input").fill(updatedSetName);
+    await editModal.getByTestId("save-set-button").click();
 
-    // Wait for edit modal and update the set details
-    await page.waitForSelector('[role="dialog"], [role="complementary"]');
-    const editModal = page
-      .locator('[role="dialog"], [role="complementary"]')
-      .filter({ hasText: "Edytuj zestaw fiszek" });
-    const updatedName = `${setName} (Updated)`;
+    await editResponsePromise;
 
-    // Clear and fill the name field
-    await editModal.getByLabel("Nazwa zestawu").first().clear();
-    await editModal.getByLabel("Nazwa zestawu").first().fill(updatedName);
-
-    // Clear and fill the description field
-    await editModal.getByLabel("Opis (opcjonalnie)").first().clear();
-    await editModal
-      .getByLabel("Opis (opcjonalnie)")
-      .first()
-      .fill("Updated description");
-
-    // Submit the form by clicking save button
-    await page.getByRole("button", { name: "Zapisz zmiany" }).click();
-
-    // Wait for update to complete and modal to close
-    await page.waitForTimeout(3000);
-
-    // Verify the changes are reflected (skip modal check for now)
-    await expect(page.locator(`text="${updatedName}"`)).toHaveCount(2); // Should appear in both mobile and desktop views
+    const updatedSetRow = page.locator(`[data-testid="set-row-${setId}"]`);
+    await expect(updatedSetRow).toContainText(updatedSetName);
+    console.log(`Set ID ${setId} successfully updated to "${updatedSetName}"`);
   });
 
-  // SCN_PROT_003: Delete flashcard set
-  test("SCN_PROT_003: should delete a flashcard set", async ({ page }) => {
-    await page.goto("/protected/sets");
-
-    // First, create a set for deletion
+  test("SCN_PROT_002: should delete a flashcard set", async ({ page }) => {
     const setName = `Delete Test Set ${Date.now()}`;
-    await page
-      .getByRole("button", { name: /utwórz nowy zestaw|utwórz|nowy zestaw/i })
-      .click();
 
-    // Wait for modal and fill creation form
-    await page.waitForSelector('[role="dialog"], [role="complementary"]');
-    const createModal = page
-      .locator('[role="dialog"], [role="complementary"]')
-      .filter({ hasText: "Utwórz nowy zestaw fiszek" });
-    await createModal.getByLabel("Nazwa zestawu").first().fill(setName);
-    await createModal
-      .getByLabel("Opis (opcjonalnie)")
-      .first()
-      .fill("To be deleted");
-    await page.getByRole("button", { name: /Utwórz|Tworzenie/ }).click();
+    const setId = await createSet(page, setName);
 
-    // Wait for creation to complete
-    await page.waitForTimeout(1000);
+    const setRow = page.locator(`[data-testid="set-row-${setId}"]`);
+    await setRow.getByTestId(`delete-set-desktop-${setId}`).click();
 
-    // Verify set was created
-    await expect(page.locator(`text="${setName}"`)).toHaveCount(2); // Should appear in both mobile and desktop views
+    const deleteResponsePromise = page.waitForResponse(
+      (response: Response) =>
+        response.url().includes(`/api/flashcards-sets/${setId}`) &&
+        response.status() === 204 &&
+        response.request().method() === "DELETE"
+    );
 
-    // Find delete button for our specific set
-    const tableRow = page
-      .locator("tr")
-      .filter({ has: page.locator(`button[title="${setName}"]`) });
-    await tableRow.getByRole("button", { name: "Usuń" }).click();
+    const confirmDialog = page.getByTestId("delete-set-dialog");
+    await expect(confirmDialog).toBeVisible();
+    await confirmDialog.getByTestId("confirm-delete-button").click();
 
-    // Wait for confirmation dialog and confirm deletion
-    await page.waitForSelector('[role="dialog"], [role="complementary"]');
-    const deleteModal = page
-      .locator('[role="dialog"], [role="complementary"]')
-      .filter({ hasText: "Ta operacja jest nieodwracalna" });
-    await deleteModal.getByRole("button", { name: "Usuń" }).click();
+    await deleteResponsePromise;
 
-    // Wait for deletion to complete
-    await page.waitForTimeout(3000);
-
-    // Force page refresh to ensure list is updated
-    await page.reload();
-    await page.waitForTimeout(1000);
-
-    // Verify the set is no longer visible
-    await expect(page.locator(`text="${setName}"`)).toHaveCount(0);
+    await expect(setRow).not.toBeVisible({ timeout: 10000 });
+    console.log(`Set "${setName}" (ID: ${setId}) successfully deleted`);
   });
 });

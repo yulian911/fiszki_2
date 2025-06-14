@@ -33,7 +33,7 @@ if (
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function createTestUser() {
-  const testEmail = process.env.E2E_EMAIL || "test@example.com";
+  const testEmail = process.env.E2E_EMAIL || "test@test.pl";
   const testPassword = process.env.E2E_PASSWORD || "Test123!";
 
   console.log(`Tworzenie użytkownika testowego: ${testEmail}`);

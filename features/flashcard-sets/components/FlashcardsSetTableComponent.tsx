@@ -32,6 +32,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { formatDate } from "@/utils/utils";
+import { useRouter } from "next/navigation";
 
 // Interfejs dla propsów komponentu
 interface FlashcardsSetTableComponentProps {
@@ -46,6 +47,7 @@ interface FlashcardsSetTableComponentProps {
 export const FlashcardsSetTableComponent: React.FC<
   FlashcardsSetTableComponentProps
 > = ({ sets, onEdit, onShare, onDelete, onClone, onLearn }) => {
+  const router = useRouter();
   const getStatusVariant = (status: FlashcardsSetStatus) => {
     switch (status) {
       case "accepted":
@@ -82,14 +84,18 @@ export const FlashcardsSetTableComponent: React.FC<
           const canLearn = (set.flashcardCount ?? 0) > 0;
 
           return (
-            <TableRow key={set.id}>
+            <TableRow key={set.id} data-testid={`set-row-${set.id}`}>
               <TableCell className="font-medium">
-                <Link
-                  href={`/protected/sets/${set.id}`}
-                  className="hover:underline"
+                <span
+                  onClick={() => router.push(`/protected/sets/${set.id}`)}
+                  className={
+                    isOwner
+                      ? "hover:underline cursor-pointer"
+                      : "cursor-default"
+                  }
                 >
                   {set.name}
-                </Link>
+                </span>
               </TableCell>
               <TableCell>
                 {isOwner ? (
@@ -132,18 +138,21 @@ export const FlashcardsSetTableComponent: React.FC<
                           <DropdownMenuItem
                             onClick={() => onEdit(set)}
                             disabled={!canEdit}
+                            data-testid={`edit-set-mobile-${set.id}`}
                           >
                             <FilePenLine className="mr-2 h-4 w-4" /> Edytuj
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => onShare(set)}
                             disabled={!canShare}
+                            data-testid={`share-set-mobile-${set.id}`}
                           >
                             <Share2 className="mr-2 h-4 w-4" /> Udostępnij
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => onClone(set)}
                             disabled={!canClone}
+                            data-testid={`clone-set-mobile-${set.id}`}
                           >
                             <Copy className="mr-2 h-4 w-4" /> Klonuj
                           </DropdownMenuItem>
@@ -151,6 +160,7 @@ export const FlashcardsSetTableComponent: React.FC<
                             onClick={() => onDelete(set)}
                             disabled={!canDelete}
                             className="text-red-500"
+                            data-testid={`delete-set-mobile-${set.id}`}
                           >
                             <Trash2 className="mr-2 h-4 w-4" /> Usuń
                           </DropdownMenuItem>
@@ -160,6 +170,7 @@ export const FlashcardsSetTableComponent: React.FC<
                           <DropdownMenuItem
                             onClick={() => onLearn(set)}
                             disabled={!canLearn}
+                            data-testid={`learn-set-mobile-${set.id}`}
                           >
                             <BookOpen className="mr-2 h-4 w-4" /> Ucz się
                           </DropdownMenuItem>
@@ -179,6 +190,7 @@ export const FlashcardsSetTableComponent: React.FC<
                               size="icon"
                               onClick={() => onEdit(set)}
                               disabled={!canEdit}
+                              data-testid={`edit-set-desktop-${set.id}`}
                             >
                               <FilePenLine className="h-4 w-4" />
                             </Button>
@@ -192,6 +204,7 @@ export const FlashcardsSetTableComponent: React.FC<
                               size="icon"
                               onClick={() => onShare(set)}
                               disabled={!canShare}
+                              data-testid={`share-set-desktop-${set.id}`}
                             >
                               <Share2 className="h-4 w-4" />
                             </Button>
@@ -209,6 +222,7 @@ export const FlashcardsSetTableComponent: React.FC<
                               size="icon"
                               onClick={() => onClone(set)}
                               disabled={!canClone}
+                              data-testid={`clone-set-desktop-${set.id}`}
                             >
                               <Copy className="h-4 w-4" />
                             </Button>
@@ -226,6 +240,7 @@ export const FlashcardsSetTableComponent: React.FC<
                               size="icon"
                               onClick={() => onDelete(set)}
                               disabled={!canDelete}
+                              data-testid={`delete-set-desktop-${set.id}`}
                             >
                               <Trash2 className="h-4 w-4 text-red-500" />
                             </Button>
@@ -242,6 +257,7 @@ export const FlashcardsSetTableComponent: React.FC<
                               size="icon"
                               onClick={() => onLearn(set)}
                               disabled={!canLearn}
+                              data-testid={`learn-set-desktop-${set.id}`}
                             >
                               <BookOpen className="h-4 w-4" />
                             </Button>

@@ -45,10 +45,12 @@ export default function OpenEditDeleteFlashcardSetModal() {
   let description =
     "Wprowadź nazwę dla swojego nowego zestawu. Po zapisaniu będziesz mógł dodać do niego fiszki.";
   let content = null;
+  let testId = "create-set-modal"; // Domyślny test-id
 
   if (flashcardSetEditId) {
     title = "Edytuj zestaw fiszek";
     description = "Edytuj nazwę swojego zestawu fiszek";
+    testId = "edit-set-modal";
     content = (
       <EditSetFormComponent
         flashcardSetId={flashcardSetEditId}
@@ -58,6 +60,7 @@ export default function OpenEditDeleteFlashcardSetModal() {
   } else if (deleteFlashcardSetId) {
     title = "Usuń zestaw fiszek";
     description = "Czy na pewno chcesz usunąć ten zestaw fiszek?";
+    testId = "delete-set-modal";
     content = (
       <ConfirmDeleteModalComponent
         deleteFlashcardSetId={deleteFlashcardSetId}
@@ -79,6 +82,7 @@ export default function OpenEditDeleteFlashcardSetModal() {
       title={title}
       description={description}
       onOpenChange={handleModalClose}
+      data-testid={testId}
     >
       {content}
     </ResponsiveModal>

@@ -28,7 +28,7 @@ export const updateFlashcardsSetCommandSchema = z
   .object({
     name: z.string().min(3).max(100).optional(),
     status: z.enum(["pending", "accepted", "rejected"]).optional(),
-    description: z.string().max(500).optional(),
+    description: z.string().max(500).optional().nullable(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "Przynajmniej jedno pole musi być zdefiniowane do aktualizacji",

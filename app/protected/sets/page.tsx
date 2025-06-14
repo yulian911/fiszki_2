@@ -90,10 +90,11 @@ export default function FlashcardsSetsListViewPage() {
 
   const handleEdit = (set: FlashcardsSetDTO) => {
     if (set.accessLevel === "owner") {
-      router.push(`/protected/sets/${set.id}?edit-flashcard-set=${set.id}`);
+      router.push(`/protected/sets?edit-flashcard-set=${set.id}`);
     } else {
-      // Dla udostępnionych zestawów, 'Edytuj' oznacza 'Ucz się'
-      router.push(`/protected/sets/${set.id}`);
+      console.warn(
+        `Użytkownik próbował edytować udostępniony zestaw: ${set.id}`
+      );
     }
   };
 
@@ -198,7 +199,11 @@ export default function FlashcardsSetsListViewPage() {
     <div className="container mx-auto py-8 px-4 md:px-6 lg:px-8">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <h1 className="text-3xl font-bold">Moje Zestawy Fiszek</h1>
-        <Button onClick={openEditModal} disabled={isLoading}>
+        <Button
+          onClick={openEditModal}
+          disabled={isLoading}
+          data-testid="create-set-button"
+        >
           Utwórz nowy zestaw
         </Button>
       </div>
@@ -230,7 +235,7 @@ export default function FlashcardsSetsListViewPage() {
           open={!!setToDelete}
           onOpenChange={(isOpen) => !isOpen && setSetToDelete(null)}
         >
-          <DialogContent>
+          <DialogContent data-testid="delete-set-dialog">
             <DialogHeader>
               <DialogTitle>
                 Czy na pewno chcesz usunąć zestaw: {setToDelete.name}?

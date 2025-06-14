@@ -235,17 +235,17 @@ export class FlashcardsSetService {
     command: UpdateFlashcardsSetCommand,
     isAdmin: boolean = false
   ): Promise<FlashcardsSetDTO> {
-    let query = this.supabase
+    // Sprawdzenie uprawnień
+    let checkQuery = this.supabase
       .from("flashcards_set")
       .select("status")
       .eq("id", setId);
 
-    // Jeśli użytkownik nie jest adminem, musi być właścicielem
     if (!isAdmin) {
-      query = query.eq("owner_id", userId);
+      checkQuery = checkQuery.eq("owner_id", userId);
     }
 
-    const { data: existingSet, error: checkError } = await query.single();
+    const { data: existingSet, error: checkError } = await checkQuery.single();
 
     if (checkError) {
       throw new Error(
@@ -253,29 +253,8 @@ export class FlashcardsSetService {
       );
     }
 
-    const updates: Partial<{
-      name: string;
-      status: FlashcardsSetStatus;
-      description: string;
-    }> = {};
-
-    if (command.name !== undefined) updates.name = command.name;
-    if (command.status !== undefined) updates.status = command.status;
-    if (command.description !== undefined)
-      updates.description = command.description;
-
-    if (Object.keys(updates).length === 0) {
-      const { data } = await this.supabase
-        .from("flashcards_set")
-        .select("*, stats_flashcards_set(count)")
-        .eq("id", setId)
-        .single();
-      return mapFlashcardsSetToDTO(data);
-    }
-
-    // Dodajemy updated_at, aby zawsze odnotować fakt edycji
     const finalUpdates = {
-      ...updates,
+      ...command,
       updated_at: new Date().toISOString(),
     };
 
@@ -301,35 +280,94 @@ export class FlashcardsSetService {
    * Usuwa zestaw i wszystkie powiązane fiszki
    */
   async delete(userId: string, setId: string): Promise<void> {
-    // Sprawdzenie, czy zestaw istnieje i należy do użytkownika
+    // 1. Sprawdź, czy zestaw istnieje i należy do użytkownika
     const { data: existingSet, error: checkError } = await this.supabase
       .from("flashcards_set")
-      .select("status")
+      .select("id, status")
       .eq("id", setId)
       .eq("owner_id", userId)
       .single();
 
     if (checkError) {
       throw new Error(
-        `Zestaw nie istnieje lub użytkownik nie ma do niego dostępu: ${checkError.message}`
+        `Zestaw nie istnieje lub nie masz do niego dostępu: ${checkError.message}`
       );
     }
 
-    // Sprawdzenie statusu - zgodnie z planem, usuwać można tylko zaakceptowane zestawy
-    if (existingSet.status !== "accepted") {
+    // 2. Usuń powiązane udostępnienia
+    const { error: deleteSharesError } = await this.supabase
+      .from("flashcards_set_shares")
+      .delete()
+      .eq("flashcards_set_id", setId);
+
+    if (deleteSharesError) {
       throw new Error(
-        `Można usuwać tylko zestawy o statusie 'accepted'. Aktualny status: ${existingSet.status}.`
+        `Błąd podczas usuwania udostępnień: ${deleteSharesError.message}`
       );
     }
 
-    // Usunięcie zestawu (kaskadowe usunięcie fiszek powinno być obsługiwane przez RLS w bazie)
-    const { error } = await this.supabase
+    // 3. Usuń powiązane sesje nauki
+    const { error: deleteSessionsError } = await this.supabase
+      .from("sessions")
+      .delete()
+      .eq("flashcards_set_id", setId);
+
+    if (deleteSessionsError) {
+      throw new Error(
+        `Błąd podczas usuwania sesji nauki: ${deleteSessionsError.message}`
+      );
+    }
+
+    // 4. Pobierz ID wszystkich fiszek w zestawie
+    const { data: flashcards, error: getFlashcardsError } = await this.supabase
+      .from("flashcards")
+      .select("id")
+      .eq("flashcards_set_id", setId);
+
+    if (getFlashcardsError) {
+      throw new Error(
+        `Błąd podczas pobierania fiszek do usunięcia: ${getFlashcardsError.message}`
+      );
+    }
+
+    const flashcardIds = flashcards.map((f) => f.id);
+
+    // 5. Usuń powiązania tagów dla tych fiszek
+    if (flashcardIds.length > 0) {
+      const { error: deleteTagsError } = await this.supabase
+        .from("flashcards_tags")
+        .delete()
+        .in("flashcard_id", flashcardIds);
+
+      if (deleteTagsError) {
+        throw new Error(
+          `Błąd podczas usuwania powiązań tagów: ${deleteTagsError.message}`
+        );
+      }
+    }
+
+    // 6. Usuń same fiszki
+    const { error: deleteFlashcardsError } = await this.supabase
+      .from("flashcards")
+      .delete()
+      .eq("flashcards_set_id", setId);
+
+    if (deleteFlashcardsError) {
+      throw new Error(
+        `Błąd podczas usuwania fiszek z zestawu: ${deleteFlashcardsError.message}`
+      );
+    }
+
+    // 7. Na koniec usuń sam zestaw
+    const { error: deleteSetError } = await this.supabase
       .from("flashcards_set")
       .delete()
       .eq("id", setId);
 
-    if (error) {
-      throw new Error(`Błąd podczas usuwania zestawu: ${error.message}`);
+    if (deleteSetError) {
+      throw new Error(
+        `Błąd podczas usuwania zestawu: ${deleteSetError.message}`
+      );
     }
   }
 
@@ -573,9 +611,10 @@ export const updateFlashcardsSet = (
   setId: string,
   command: UpdateFlashcardsSetCommand
 ) => {
-  return getUserIdOrThrow().then((userId) =>
-    flashcardsSetService.update(userId, setId, command)
-  );
+  return getUserIdOrThrow().then(async (userId) => {
+    const isAdmin = await isCurrentUserAdmin(createClient());
+    return flashcardsSetService.update(userId, setId, command, isAdmin);
+  });
 };
 
 export const deleteFlashcardsSet = (setId: string) => {

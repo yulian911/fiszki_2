@@ -9,7 +9,7 @@ interface SetDetailsHeaderProps {
 }
 
 export const SetDetailsHeader: React.FC<SetDetailsHeaderProps> = ({ set }) => {
-  const { open: openEditModal } = useEditModalSet();
+  const { openEdit } = useEditModalSet();
 
   // Placeholder for delete action (can be integrated later)
   const handleDelete = () => {
@@ -27,10 +27,14 @@ export const SetDetailsHeader: React.FC<SetDetailsHeaderProps> = ({ set }) => {
           <span>|</span>
           <span>Liczba fiszek: {set.flashcardCount ?? 0}</span>
         </div>
-        {set.description && <p className="text-sm text-muted-foreground max-w-2xl">{set.description}</p>}
+        {set.description && (
+          <p className="text-sm text-muted-foreground max-w-2xl">
+            {set.description}
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-2 self-start md:self-auto">
-        <Button variant="outline" onClick={openEditModal}>
+        <Button variant="outline" onClick={() => openEdit(set.id)}>
           Edytuj zestaw
         </Button>
         <Button variant="destructive" onClick={handleDelete}>
@@ -39,4 +43,4 @@ export const SetDetailsHeader: React.FC<SetDetailsHeaderProps> = ({ set }) => {
       </div>
     </header>
   );
-}; 
+};

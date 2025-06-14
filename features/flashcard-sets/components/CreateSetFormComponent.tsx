@@ -20,6 +20,8 @@ import { useCreateFlashcardSet } from "../api/useMutateFlashcardSets";
 import { toast } from "sonner";
 import { useDebounce } from "@/hooks/use-debounce";
 import { checkSetNameUnique } from "../services/FlashcardsSetService";
+import { useQueryClient } from "@tanstack/react-query";
+import { FLASHCARD_SETS_QUERY_KEY } from "../api/useGetFlashcardSets";
 
 type Props = {
   onCancel: () => void;
@@ -39,6 +41,7 @@ export function CreateSetFormComponent({ onCancel }: Props) {
   });
 
   const { mutate: createSet, isPending } = useCreateFlashcardSet();
+  const queryClient = useQueryClient();
   const [isCheckingName, setIsCheckingName] = useState(false);
 
   const nameValue = form.watch("name");
@@ -56,7 +59,7 @@ export function CreateSetFormComponent({ onCancel }: Props) {
               message: "Ta nazwa jest już zajęta.",
             });
           } else {
-             form.clearErrors("name");
+            form.clearErrors("name");
           }
         } catch (error) {
           console.error("Błąd podczas sprawdzania nazwy:", error);
@@ -71,12 +74,17 @@ export function CreateSetFormComponent({ onCancel }: Props) {
   const onSubmit = (values: FormValues) => {
     createSet(values, {
       onSuccess: () => {
+        toast.success(`Zestaw "${values.name}" został pomyślnie utworzony.`);
+        queryClient.invalidateQueries({
+          queryKey: [FLASHCARD_SETS_QUERY_KEY],
+        });
         onCancel();
       },
     });
   };
-  
-  const isSubmitDisabled = isPending || isCheckingName || !form.formState.isValid;
+
+  const isSubmitDisabled =
+    isPending || isCheckingName || !form.formState.isValid;
 
   return (
     <Form {...form}>
@@ -92,10 +100,15 @@ export function CreateSetFormComponent({ onCancel }: Props) {
                   placeholder="Wpisz nazwę zestawu..."
                   {...field}
                   disabled={isPending}
+                  data-testid="set-name-input"
                 />
               </FormControl>
               <FormMessage />
-               {isCheckingName && <p className="text-sm text-muted-foreground">Sprawdzanie nazwy...</p>}
+              {isCheckingName && (
+                <p className="text-sm text-muted-foreground">
+                  Sprawdzanie nazwy...
+                </p>
+              )}
             </FormItem>
           )}
         />
@@ -111,6 +124,7 @@ export function CreateSetFormComponent({ onCancel }: Props) {
                   placeholder="Opisz zestaw..."
                   {...field}
                   disabled={isPending}
+                  data-testid="set-description-input"
                 />
               </FormControl>
               <FormMessage />
@@ -118,7 +132,7 @@ export function CreateSetFormComponent({ onCancel }: Props) {
           )}
         />
 
-        <div className="flex justify-end space-x-2">
+        <div className="flex justify-end gap-2 mt-4">
           <Button
             type="button"
             variant="outline"
@@ -127,11 +141,15 @@ export function CreateSetFormComponent({ onCancel }: Props) {
           >
             Anuluj
           </Button>
-          <Button type="submit" disabled={isSubmitDisabled}>
-            {isPending ? "Tworzenie..." : isCheckingName ? "Sprawdzanie..." : "Utwórz"}
+          <Button
+            type="submit"
+            disabled={isPending}
+            data-testid="save-set-button"
+          >
+            {isPending ? "Zapisywanie..." : "Zapisz"}
           </Button>
         </div>
       </form>
     </Form>
   );
-} 
+}

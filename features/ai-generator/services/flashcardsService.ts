@@ -1,5 +1,11 @@
 import { createClient } from "@/utils/supabase/server";
-import type { FlashcardSource, CreateFlashcardCommand, UpdateFlashcardCommand, FlashcardDTO } from "@/types";
+import type {
+  FlashcardSource,
+  CreateFlashcardCommand,
+  UpdateFlashcardCommand,
+  FlashcardDTO,
+  CreateBulkFlashcardsCommand,
+} from "@/types";
 
 export interface ListParams {
   setId?: string;
@@ -14,11 +20,11 @@ export class FlashcardsService {
   /**
    * Lists flashcards with optional filtering, sorting, and pagination.
    */
-  static async list(params: ListParams): Promise<{ data: any[]; total: number }> {
+  static async list(
+    params: ListParams
+  ): Promise<{ data: any[]; total: number }> {
     const supabase = await createClient();
-    let query = supabase
-      .from("flashcards")
-      .select("*", { count: "exact" });
+    let query = supabase.from("flashcards").select("*", { count: "exact" });
 
     if (params.setId) {
       query = query.eq("flashcards_set_id", params.setId);
@@ -26,9 +32,12 @@ export class FlashcardsService {
     if (params.source) {
       query = query.eq("source", params.source);
     }
-    // Filter by tags if provided
+
     if (params.tags) {
-      const tagNames = params.tags.split(",").map((t) => t.trim()).filter(Boolean);
+      const tagNames = params.tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
       if (tagNames.length > 0) {
         // Retrieve tag IDs
         const { data: tagRows, error: tagError } = await supabase
@@ -51,7 +60,7 @@ export class FlashcardsService {
           throw new Error(linkError.message);
         }
         const flashcardIds = Array.from(
-          new Set(linkRows.map((link) => link.flashcard_id)),
+          new Set(linkRows.map((link) => link.flashcard_id))
         );
         if (flashcardIds.length === 0) {
           return { data: [], total: 0 };
@@ -63,7 +72,7 @@ export class FlashcardsService {
     if (params.sortBy) {
       query = query.order(
         params.sortBy === "createdAt" ? "created_at" : "question",
-        { ascending: true },
+        { ascending: true }
       );
     }
 
@@ -81,6 +90,43 @@ export class FlashcardsService {
       data: data ?? [],
       total: count ?? 0,
     };
+  }
+
+  /**
+   * Creates multiple flashcards in bulk.
+   */
+  static async createBulk(
+    command: CreateBulkFlashcardsCommand
+  ): Promise<FlashcardDTO[]> {
+    const { flashcardsSetId, flashcards } = command;
+    const supabase = await createClient();
+
+    const flashcardsToInsert = flashcards.map((fc) => ({
+      flashcards_set_id: flashcardsSetId,
+      question: fc.question,
+      answer: fc.answer,
+      source: "ai-full",
+    }));
+
+    const { data, error } = await supabase
+      .from("flashcards")
+      .insert(flashcardsToInsert)
+      .select();
+
+    if (error) {
+      throw new Error(error.message || "Failed to create flashcards in bulk");
+    }
+
+    return (data || []).map((f) => ({
+      id: f.id,
+      flashcardsSetId: f.flashcards_set_id,
+      question: f.question,
+      answer: f.answer,
+      source: f.source,
+      createdAt: f.created_at,
+      updatedAt: f.updated_at,
+      tags: [], // Tags are not handled in bulk creation for now
+    }));
   }
 
   /**
@@ -104,21 +150,22 @@ export class FlashcardsService {
     const uniqueNames = Array.from(new Set(tags));
     const { data: upsertedTags, error: upsertError } = await supabase
       .from("tags")
-      .upsert(uniqueNames.map((name) => ({ name })), { onConflict: "name" })
+      .upsert(
+        uniqueNames.map((name) => ({ name })),
+        { onConflict: "name" }
+      )
       .select("*");
     if (upsertError || !upsertedTags) {
       throw new Error(upsertError?.message ?? "Failed to upsert tags");
     }
 
     // Link tags to flashcard
-    const { error: relError } = await supabase
-      .from("flashcards_tags")
-      .insert(
-        upsertedTags.map((t) => ({
-          flashcard_id: flashcard.id,
-          tag_id: t.id,
-        })),
-      );
+    const { error: relError } = await supabase.from("flashcards_tags").insert(
+      upsertedTags.map((t) => ({
+        flashcard_id: flashcard.id,
+        tag_id: t.id,
+      }))
+    );
     if (relError) {
       throw new Error(relError.message);
     }
@@ -127,7 +174,10 @@ export class FlashcardsService {
     const { data: tagRecords, error: tagFetchError } = await supabase
       .from("tags")
       .select("*")
-      .in("id", upsertedTags.map((t) => t.id));
+      .in(
+        "id",
+        upsertedTags.map((t) => t.id)
+      );
     if (tagFetchError || !tagRecords) {
       throw new Error(tagFetchError?.message ?? "Failed to fetch tags");
     }
@@ -175,12 +225,13 @@ export class FlashcardsService {
       throw new Error(tagLinkError.message);
     }
 
-    const tags = tagLinks?.map((link: any) => ({
-      id: link.tags.id,
-      name: link.tags.name,
-      createdAt: link.tags.created_at,
-      updatedAt: link.tags.updated_at,
-    })) || [];
+    const tags =
+      tagLinks?.map((link: any) => ({
+        id: link.tags.id,
+        name: link.tags.name,
+        createdAt: link.tags.created_at,
+        updatedAt: link.tags.updated_at,
+      })) || [];
 
     return {
       id: flashcard.id,
@@ -197,7 +248,10 @@ export class FlashcardsService {
   /**
    * Updates a flashcard and its tags, returning the updated DTO.
    */
-  static async update(id: string, command: UpdateFlashcardCommand): Promise<FlashcardDTO> {
+  static async update(
+    id: string,
+    command: UpdateFlashcardCommand
+  ): Promise<FlashcardDTO> {
     const { question, answer, tags } = command;
     const supabase = await createClient();
 
@@ -222,7 +276,10 @@ export class FlashcardsService {
       const uniqueNames = Array.from(new Set(tags));
       const { data: upsertedTags, error: upsertError } = await supabase
         .from("tags")
-        .upsert(uniqueNames.map((name) => ({ name })), { onConflict: "name" })
+        .upsert(
+          uniqueNames.map((name) => ({ name })),
+          { onConflict: "name" }
+        )
         .select("*");
       if (upsertError || !upsertedTags) {
         throw new Error(upsertError?.message ?? "Failed to upsert tags");
@@ -240,9 +297,7 @@ export class FlashcardsService {
       // Insert new tag relations
       const { error: relError } = await supabase
         .from("flashcards_tags")
-        .insert(
-          upsertedTags.map((t) => ({ flashcard_id: id, tag_id: t.id })),
-        );
+        .insert(upsertedTags.map((t) => ({ flashcard_id: id, tag_id: t.id })));
       if (relError) {
         throw new Error(relError.message);
       }
@@ -282,16 +337,23 @@ export class FlashcardsService {
    */
   static async delete(id: string): Promise<void> {
     const supabase = await createClient();
+
+    // The database is configured with ON DELETE CASCADE for the flashcards_tags table,
+    // so manual deletion of associations is not necessary.
     const { data, error } = await supabase
       .from("flashcards")
       .delete()
       .eq("id", id)
-      .select("*");
+      .select("*"); // select to check if a row was actually deleted
+
     if (error) {
       throw new Error(error.message);
     }
+
     if (!data || data.length === 0) {
+      // This error is typically thrown when RLS policy prevents the deletion,
+      // making it seem as if the flashcard was not found.
       throw new Error("Flashcard not found");
     }
   }
-} 
+}

@@ -14,11 +14,11 @@ function makeQueryClient() {
       queries: {
         staleTime: 30 * 1000, // 30 sekund - dłuższy czas świeżości danych
         gcTime: 10 * 60 * 1000, // 10 minut - czas przechowywania nieaktywnych queries
-        refetchOnWindowFocus: true, 
+        refetchOnWindowFocus: true,
         refetchOnReconnect: true,
         retry: (failureCount, error) => {
           // Nie próbuj ponownie dla błędów 4xx, tylko dla 5xx i network errors
-          if (error instanceof Error && 'status' in error) {
+          if (error instanceof Error && "status" in error) {
             const status = (error as any).status;
             if (status >= 400 && status < 500) return false;
           }
@@ -28,7 +28,7 @@ function makeQueryClient() {
       mutations: {
         retry: 1,
         onError: (error, variables, context) => {
-          console.error('Mutation error:', error);
+          console.error("Mutation error:", error);
         },
       },
     },
@@ -65,7 +65,9 @@ export const QueryProviders = ({ children }: QueryProviderProps) => {
   return (
     <QueryClientProvider client={queryClient}>
       {children}
-      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
+      {process.env.NODE_ENV === "development" && (
+        <ReactQueryDevtools initialIsOpen={false} />
+      )}
     </QueryClientProvider>
   );
 };
