@@ -120,31 +120,28 @@ test.describe("Authentication Flow", () => {
     ).toBeVisible();
 
     // Now, perform the logout action
-    await page.getByRole("button", { name: /wyloguj/i }).click();
+    await page.getByRole("button", { name: "Wyloguj" }).click();
 
-    // After clicking logout, the server action will destroy the session.
-    // A page reload should force the middleware to redirect to the sign-in page.
-    // This is the most robust way to verify logout.
-    await page.waitForTimeout(1000); // Give a moment for the action to be sent
-    await page.reload({ waitUntil: "domcontentloaded" });
+    // Wait for the URL to change to the sign-in page
+    await page.waitForURL("**/sign-in", { timeout: 10000 });
 
-    // Verify we are redirected to the sign-in page
-    await expect(page).toHaveURL(/.*sign-in/, { timeout: 10000 });
-    await expect(page.getByRole("heading", { name: "Login" })).toBeVisible();
+    // Verify we are on the sign-in page
+    await expect(page).toHaveURL(/.*sign-in/);
+    await expect(page.getByText("Login")).toBeVisible();
   });
 
   // SCN_AUTH_007: Should be on dashboard after login
   test("SCN_AUTH_007: should be on dashboard after login", async ({ page }) => {
-    // Log in first
+    // Start on the sign-in page to ensure a clean state
     await page.goto("/sign-in");
 
-    const navigationPromise = page.waitForURL("**/protected");
+    // Perform login
     await page.getByTestId("email-input").fill(E2E_EMAIL);
     await page.getByTestId("password-input").fill(E2E_PASSWORD);
-    await page.getByTestId("login-button").click();
-    await navigationPromise;
+    await page.getByRole("button", { name: "Zaloguj się" }).click();
 
-    // After redirect, explicitly wait for the dashboard heading to be visible
+    // Verify that we are redirected to the protected dashboard
+    await expect(page).toHaveURL(/.*protected/);
     await expect(
       page.getByRole("heading", { name: "Panel główny" })
     ).toBeVisible({

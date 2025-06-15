@@ -1,16 +1,23 @@
+// jest.setup.js
+import dotenv from "dotenv";
+import path from "path";
+
+// Load environment variables from .env.local
+dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
+
 // Import jest-dom matchers
-import '@testing-library/jest-dom';
+import "@testing-library/jest-dom";
 
 // Mock next/router
-jest.mock('next/router', () => ({
+jest.mock("next/router", () => ({
   useRouter: () => ({
     push: jest.fn(),
     replace: jest.fn(),
     prefetch: jest.fn(),
     back: jest.fn(),
     query: {},
-    pathname: '/',
-    asPath: '/',
+    pathname: "/",
+    asPath: "/",
     events: {
       on: jest.fn(),
       off: jest.fn(),
@@ -20,17 +27,17 @@ jest.mock('next/router', () => ({
 }));
 
 // Mock next/navigation
-jest.mock('next/navigation', () => ({
+jest.mock("next/navigation", () => ({
   useRouter: () => ({
     push: jest.fn(),
     replace: jest.fn(),
     back: jest.fn(),
   }),
   useSearchParams: () => new URLSearchParams(),
-  usePathname: () => '/',
+  usePathname: () => "/",
 }));
 
 // Reset all mocks after each test
 afterEach(() => {
   jest.clearAllMocks();
-}); 
+});
