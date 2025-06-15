@@ -193,6 +193,11 @@ export default function FlashcardsSetsListViewPage() {
     openEditModal,
     filters,
     resetFilters,
+    handleClone,
+    handleDelete,
+    handleEdit,
+    handleLearn,
+    handleShare,
   ]);
 
   return (

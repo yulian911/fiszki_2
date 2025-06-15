@@ -14,8 +14,10 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useSupabase } from "@/components/supabase-provider";
 
 export default function ForgotPasswordForm() {
+  const supabase = useSupabase();
   const {
     register,
     handleSubmit,
@@ -25,7 +27,8 @@ export default function ForgotPasswordForm() {
   });
 
   const mutation = useMutation({
-    mutationFn: (data: ForgotPasswordInput) => forgotPasswordApi(data),
+    mutationFn: (data: ForgotPasswordInput) =>
+      forgotPasswordApi(supabase, data),
     onSuccess: () => {
       toast.success("Sprawdź swój email, aby zresetować hasło");
     },
