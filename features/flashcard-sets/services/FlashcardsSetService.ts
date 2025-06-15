@@ -530,26 +530,21 @@ export class FlashcardsSetService {
     name: string,
     setIdToExclude?: string
   ): Promise<{ isUnique: boolean }> {
-    let query = this.supabase
-      .from("flashcards_set")
-      .select("id")
-      .eq("owner_id", userId)
-      .eq("name", name)
-      .limit(1);
-
-    if (setIdToExclude) {
-      query = query.not("id", "eq", setIdToExclude);
-    }
-
-    const { data, error } = await query;
+    const { data, error } = await this.supabase.rpc(
+      "is_flashcard_set_name_unique",
+      {
+        p_user_id: userId,
+        p_name: name,
+        p_set_id_to_exclude: setIdToExclude || null,
+      }
+    );
 
     if (error) {
-      throw new Error(
-        `Błąd podczas sprawdzania unikalności nazwy: ${error.message}`
-      );
+      console.error("Error checking set name uniqueness:", error);
+      throw new Error("Could not verify set name uniqueness.");
     }
 
-    return { isUnique: data.length === 0 };
+    return { isUnique: data };
   }
 }
 

@@ -1,107 +1,93 @@
+import dotenv from "dotenv";
+import path from "path";
+
+// Load environment variables before any other imports
+dotenv.config({ path: path.resolve(__dirname, "../../../.env.local") });
+
 import { FlashcardsSetService } from "../../features/flashcard-sets/services/FlashcardsSetService";
+import { createClient } from "@/utils/supabase/client";
 
 /**
  * Plik z testami jednostkowymi API zestawów fiszek.
  * Używamy mocków dla FlashcardsSetService, aby izolować testy.
  */
 
-// Mock dla serwisu
-jest.mock("../../features/flashcard-sets/services/FlashcardsSetService");
+describe("FlashcardsSetService Integration Tests", () => {
+  let service: FlashcardsSetService;
+  let supabase: ReturnType<typeof createClient>;
+  let authenticatedUserId: string;
 
-describe("FlashcardsSetService", () => {
-  let mockFlashcardsSetService: any;
-  let mockSupabaseClient: any;
-
-  beforeEach(() => {
-    // Konfiguracja mocków
-    mockSupabaseClient = { from: jest.fn() };
-    mockFlashcardsSetService = FlashcardsSetService as any;
-    
-    // Ustaw implementację metod mockowych
-    mockFlashcardsSetService.prototype.list = jest.fn();
-    mockFlashcardsSetService.prototype.getById = jest.fn();
-    mockFlashcardsSetService.prototype.create = jest.fn();
-    mockFlashcardsSetService.prototype.update = jest.fn();
-    mockFlashcardsSetService.prototype.delete = jest.fn();
+  beforeAll(async () => {
+    // This client will be used by the service. It connects to the actual test DB.
+    supabase = createClient();
+    // We need to be authenticated to perform create/delete operations
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: process.env.E2E_EMAIL!,
+      password: process.env.E2E_PASSWORD!,
+    });
+    if (error) {
+      throw new Error(`Test login failed: ${error.message}`);
+    }
+    if (!data.user) {
+      throw new Error("Test login failed: user is null");
+    }
+    authenticatedUserId = data.user.id;
+    service = new FlashcardsSetService(supabase);
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
+  afterAll(async () => {
+    await supabase.auth.signOut();
   });
 
   describe("list", () => {
-    it("powinno zwrócić listę zestawów fiszek", async () => {
-      // Konfiguracja mocków
-      const mockSets = [
-        { id: "set1", name: "Zestaw 1" },
-        { id: "set2", name: "Zestaw 2" },
-      ];
+    it("should return a paginated list of flashcard sets", async () => {
+      // This is an integration test, so it assumes some data exists.
+      // For a real scenario, you'd seed the DB in a `beforeAll` or `beforeEach`.
+      const result = await service.list(authenticatedUserId, 1, 5);
 
-      mockFlashcardsSetService.prototype.list.mockResolvedValue({
-        data: mockSets,
-        meta: { page: 1, limit: 20, total: 2 },
-      });
-
-      // Wywołanie testowanej metody
-      const service = new FlashcardsSetService(mockSupabaseClient);
-      const result = await service.list("user123", 1, 20, "createdAt");
-
-      // Asercje
-      expect(result).toEqual({
-        data: mockSets,
-        meta: { page: 1, limit: 20, total: 2 },
-      });
-      expect(mockFlashcardsSetService.prototype.list).toHaveBeenCalledWith(
-        "user123",
-        1,
-        20,
-        "createdAt"
-      );
+      expect(result).toBeDefined();
+      expect(result.data).toBeInstanceOf(Array);
+      expect(result.meta).toBeDefined();
+      expect(result.meta.page).toBe(1);
+      expect(result.meta.limit).toBe(5);
     });
   });
 
-  describe("getById", () => {
-    it("powinno zwrócić szczegóły zestawu fiszek", async () => {
-      const mockSetId = "set-uuid";
-      const mockSetWithCards = {
-        id: mockSetId,
-        name: "Testowy zestaw",
-        status: "pending",
-        flashcards: [
-          { id: "card1", question: "Pytanie 1", answer: "Odpowiedź 1" },
-        ],
-      };
+  describe("create and delete", () => {
+    let newSetId: string;
+    const setName = `Test Set ${Date.now()}`;
 
-      mockFlashcardsSetService.prototype.getById.mockResolvedValue(
-        mockSetWithCards
-      );
+    it("should create a new flashcard set", async () => {
+      const newSet = await service.create(authenticatedUserId, {
+        name: setName,
+        description: "A test set",
+      });
 
-      // Wywołanie testowanej metody
-      const service = new FlashcardsSetService(mockSupabaseClient);
-      const result = await service.getById("user123", mockSetId);
-
-      // Asercje
-      expect(result).toEqual(mockSetWithCards);
-      expect(mockFlashcardsSetService.prototype.getById).toHaveBeenCalledWith(
-        "user123",
-        mockSetId
-      );
+      expect(newSet).toBeDefined();
+      expect(newSet.name).toBe(setName);
+      expect(newSet.ownerId).toBe(authenticatedUserId);
+      newSetId = newSet.id;
     });
 
-    it("powinno obsłużyć błąd gdy zestaw nie istnieje", async () => {
-      const mockSetId = "nonexistent-set";
+    it("should get the newly created set by ID", async () => {
+      expect(newSetId).toBeDefined(); // Ensure the previous test ran and set the ID
+      const fetchedSet = await service.getById(authenticatedUserId, newSetId);
 
-      mockFlashcardsSetService.prototype.getById.mockRejectedValue(
-        new Error("Zestaw nie istnieje lub użytkownik nie ma do niego dostępu")
-      );
+      expect(fetchedSet).toBeDefined();
+      expect(fetchedSet.id).toBe(newSetId);
+      expect(fetchedSet.name).toBe(setName);
+    });
 
-      // Wywołanie testowanej metody
-      const service = new FlashcardsSetService(mockSupabaseClient);
-      
-      // Asercje
-      await expect(service.getById("user123", mockSetId)).rejects.toThrow(
-        "Zestaw nie istnieje lub użytkownik nie ma do niego dostępu"
-      );
+    it("should delete the created flashcard set", async () => {
+      expect(newSetId).toBeDefined();
+      await expect(
+        service.delete(authenticatedUserId, newSetId)
+      ).resolves.not.toThrow();
+
+      // Verify it's gone
+      await expect(
+        service.getById(authenticatedUserId, newSetId)
+      ).rejects.toThrow();
     });
   });
 });
