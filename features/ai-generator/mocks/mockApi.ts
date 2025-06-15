@@ -17,6 +17,8 @@ const mockSets: FlashcardsSetDTO[] = [
     status: "accepted",
     createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date().toISOString(),
+    accessLevel: "owner",
+    ownerEmail: "mock@user.com",
   },
   {
     id: "set-2",
@@ -25,6 +27,8 @@ const mockSets: FlashcardsSetDTO[] = [
     status: "accepted",
     createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date().toISOString(),
+    accessLevel: "owner",
+    ownerEmail: "mock@user.com",
   },
   {
     id: "set-3",
@@ -33,6 +37,8 @@ const mockSets: FlashcardsSetDTO[] = [
     status: "accepted",
     createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date().toISOString(),
+    accessLevel: "owner",
+    ownerEmail: "mock@user.com",
   },
 ];
 
@@ -179,6 +185,8 @@ export const mockCreateSet = async (
     status: "accepted",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    accessLevel: "owner",
+    ownerEmail: "mock@user.com",
   };
 
   // Dodaj nowy zestaw do listy
