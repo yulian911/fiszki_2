@@ -214,6 +214,73 @@ $$;
 ALTER FUNCTION "public"."find_user_by_email"("email_query" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."get_daily_activity_last_7_days"() RETURNS TABLE("activity_date" "date", "review_count" bigint)
+    LANGUAGE "sql" SECURITY DEFINER
+    AS $$
+    -- 1. Generate a series of the last 7 days
+    with last_7_days as (
+        select generate_series(
+            date_trunc('day', now() at time zone 'utc') - interval '6 days',
+            date_trunc('day', now() at time zone 'utc'),
+            '1 day'::interval
+        )::date as day
+    ),
+    -- 2. Get the daily review counts for the current user
+    daily_reviews as (
+        select
+            date_trunc('day', sc.reviewed_at at time zone 'utc')::date as review_day,
+            count(sc.flashcard_id) as total_reviews
+        from public.session_cards sc
+        join public.sessions s on sc.session_id = s.id
+        where
+            s.user_id = auth.uid()
+            and sc.reviewed_at is not null
+            and sc.reviewed_at >= date_trunc('day', now() at time zone 'utc') - interval '6 days'
+        group by review_day
+    )
+    -- 3. Left join the days with the review counts to ensure all 7 days are present
+    select
+        d.day as activity_date,
+        coalesce(dr.total_reviews, 0) as review_count
+    from last_7_days d
+    left join daily_reviews dr on d.day = dr.review_day
+    order by d.day asc;
+$$;
+
+
+ALTER FUNCTION "public"."get_daily_activity_last_7_days"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_dashboard_stats"() RETURNS TABLE("flashcards_to_review_today" bigint, "total_flashcards" bigint, "completed_sessions" bigint, "study_streak" integer)
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+declare
+    current_user_id uuid := auth.uid();
+begin
+    return query
+    select
+        -- UWAGA: Logika dla fiszek do powtórzenia dzisiaj i passy nauki
+        -- wymaga rozbudowy schematu bazy danych (np. o kolumnę next_review_at).
+        -- Na tym etapie zwracamy wartości tymczasowe.
+        0::bigint as flashcards_to_review_today,
+
+        (select count(*)
+         from public.flashcards f
+         join public.flashcards_set fs on f.flashcards_set_id = fs.id
+         where fs.owner_id = current_user_id) as total_flashcards,
+
+        (select count(*)
+         from public.sessions s
+         where s.user_id = current_user_id and s.status = 'completed') as completed_sessions,
+
+        0 as study_streak;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."get_dashboard_stats"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."get_flashcard_sets_for_user"("p_user_id" "uuid", "p_page" integer, "p_limit" integer, "p_sort_by" "text", "p_sort_order" "text", "p_status" "text", "p_name_search" "text", "p_view" "text") RETURNS TABLE("id" "uuid", "owner_id" "uuid", "name" "text", "status" "text", "description" "text", "created_at" timestamp with time zone, "updated_at" timestamp with time zone, "flashcard_count" integer, "access_level" "text", "owner_email" "text", "total_count" bigint)
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -277,6 +344,60 @@ $$;
 
 
 ALTER FUNCTION "public"."get_flashcard_sets_for_user"("p_user_id" "uuid", "p_page" integer, "p_limit" integer, "p_sort_by" "text", "p_sort_order" "text", "p_status" "text", "p_name_search" "text", "p_view" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_recent_flashcard_sets"() RETURNS TABLE("id" "uuid", "name" "text", "description" "text", "updated_at" timestamp with time zone, "flashcard_count" bigint)
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+begin
+    return query
+    select
+        fs.id,
+        fs.name::text,
+        fs.description::text,
+        fs.updated_at,
+        (select count(*) from public.flashcards f where f.flashcards_set_id = fs.id) as flashcard_count
+    from
+        public.flashcards_set fs
+    where
+        fs.owner_id = auth.uid()
+        and fs.status = 'accepted'
+    order by
+        fs.updated_at desc
+    limit 5;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."get_recent_flashcard_sets"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_recent_sessions"() RETURNS TABLE("id" "uuid", "ended_at" timestamp with time zone, "score" integer, "duration_seconds" integer, "set_name" "text")
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+begin
+    return query
+    select
+        s.id,
+        s.ended_at,
+        s.score,
+        s.duration_seconds,
+        fs.name::text as set_name
+    from
+        public.sessions s
+    join
+        public.flashcards_set fs on s.flashcards_set_id = fs.id
+    where
+        s.user_id = auth.uid()
+        and s.status = 'completed'
+    order by
+        s.ended_at desc
+    limit 5;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."get_recent_sessions"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
@@ -760,9 +881,9 @@ CREATE POLICY "Użytkownicy mogą tworzyć tagi" ON "public"."tags" FOR INSERT T
 
 
 
-CREATE POLICY "Użytkownicy mogą usuwać fiszki ze swoich zestawów" ON "public"."flashcards" FOR DELETE TO "authenticated" USING ((EXISTS ( SELECT 1
+CREATE POLICY "Użytkownicy mogą usuwać fiszki ze swoich zestawów" ON "public"."flashcards" FOR DELETE TO "authenticated" USING ((( SELECT "flashcards_set"."owner_id"
    FROM "public"."flashcards_set"
-  WHERE (("flashcards_set"."id" = "flashcards"."flashcards_set_id") AND ("flashcards_set"."owner_id" = "auth"."uid"())))));
+  WHERE ("flashcards_set"."id" = "flashcards"."flashcards_set_id")) = "auth"."uid"()));
 
 
 
@@ -1100,9 +1221,33 @@ GRANT ALL ON FUNCTION "public"."find_user_by_email"("email_query" "text") TO "se
 
 
 
+GRANT ALL ON FUNCTION "public"."get_daily_activity_last_7_days"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_daily_activity_last_7_days"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_daily_activity_last_7_days"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_dashboard_stats"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_dashboard_stats"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_dashboard_stats"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."get_flashcard_sets_for_user"("p_user_id" "uuid", "p_page" integer, "p_limit" integer, "p_sort_by" "text", "p_sort_order" "text", "p_status" "text", "p_name_search" "text", "p_view" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."get_flashcard_sets_for_user"("p_user_id" "uuid", "p_page" integer, "p_limit" integer, "p_sort_by" "text", "p_sort_order" "text", "p_status" "text", "p_name_search" "text", "p_view" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_flashcard_sets_for_user"("p_user_id" "uuid", "p_page" integer, "p_limit" integer, "p_sort_by" "text", "p_sort_order" "text", "p_status" "text", "p_name_search" "text", "p_view" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_recent_flashcard_sets"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_recent_flashcard_sets"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_recent_flashcard_sets"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_recent_sessions"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_recent_sessions"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_recent_sessions"() TO "service_role";
 
 
 

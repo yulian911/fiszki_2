@@ -175,7 +175,7 @@ ALTER TABLE "public"."flashcards" OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."create_flashcard_and_update_tsv"("p_flashcards_set_id" "uuid", "p_question" "text", "p_answer" "text", "p_source" "public"."flashcard_source") RETURNS SETOF "public"."flashcards"
-    LANGUAGE "plpgsql"
+    LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
 DECLARE
     new_flashcard_id UUID;
@@ -451,9 +451,17 @@ CREATE OR REPLACE FUNCTION "public"."log_flashcards_history"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
 BEGIN
+  -- Log the old data into the history table
   INSERT INTO public.flashcards_history(flashcard_id, question, answer, source, changed_at, change_type)
   VALUES (OLD.id, OLD.question, OLD.answer, OLD.source, now(), TG_OP);
-  RETURN NEW;
+
+  -- For DELETE operations, return the OLD record to allow the operation to proceed.
+  -- For UPDATE operations, return the NEW record.
+  IF (TG_OP = 'DELETE') THEN
+    RETURN OLD;
+  ELSE
+    RETURN NEW;
+  END IF;
 END;
 $$;
 
@@ -763,8 +771,6 @@ CREATE OR REPLACE TRIGGER "update_flashcards_updated_at" BEFORE UPDATE ON "publi
 
 CREATE OR REPLACE TRIGGER "update_search_vector" BEFORE INSERT OR UPDATE ON "public"."flashcards" FOR EACH ROW EXECUTE FUNCTION "tsvector_update_trigger"('search_vector', 'simple', 'question', 'answer');
 
-ALTER TABLE "public"."flashcards" DISABLE TRIGGER "update_search_vector";
-
 
 
 CREATE OR REPLACE TRIGGER "update_tags_updated_at" BEFORE UPDATE ON "public"."tags" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
@@ -826,29 +832,29 @@ ALTER TABLE ONLY "public"."sessions"
 
 
 
-CREATE POLICY "Pełny dostęp do modyfikacji dla właścicieli lub adminów" ON "public"."flashcards_set" FOR UPDATE TO "authenticated" USING ((("owner_id" = "auth"."uid"()) OR "public"."is_admin"())) WITH CHECK ((("owner_id" = "auth"."uid"()) OR "public"."is_admin"()));
+CREATE POLICY "Fiszki: Aktualizacja przez właściciela zestawu" ON "public"."flashcards" FOR UPDATE TO "authenticated" USING ((EXISTS ( SELECT 1
+   FROM "public"."flashcards_set" "fs"
+  WHERE (("fs"."id" = "flashcards"."flashcards_set_id") AND ("fs"."owner_id" = "auth"."uid"())))));
 
 
 
-CREATE POLICY "Pełny dostęp do odczytu dla właścicieli, adminów i współ" ON "public"."flashcards_set" FOR SELECT TO "authenticated" USING ((("owner_id" = "auth"."uid"()) OR "public"."is_admin"() OR ("id" IN ( SELECT "flashcards_set_shares"."flashcards_set_id"
-   FROM "public"."flashcards_set_shares"
-  WHERE ("flashcards_set_shares"."user_id" = "auth"."uid"())))));
+CREATE POLICY "Fiszki: Dodawanie do własnych zestawów" ON "public"."flashcards" FOR INSERT TO "authenticated" WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."flashcards_set" "fs"
+  WHERE (("fs"."id" = "flashcards"."flashcards_set_id") AND ("fs"."owner_id" = "auth"."uid"())))));
 
 
 
-CREATE POLICY "Pełny dostęp do usuwania dla właścicieli lub adminów" ON "public"."flashcards_set" FOR DELETE TO "authenticated" USING ((("owner_id" = "auth"."uid"()) OR "public"."is_admin"()));
+CREATE POLICY "Fiszki: Usuwanie przez właściciela zestawu" ON "public"."flashcards" FOR DELETE TO "authenticated" USING ((EXISTS ( SELECT 1
+   FROM "public"."flashcards_set" "fs"
+  WHERE (("fs"."id" = "flashcards"."flashcards_set_id") AND ("fs"."owner_id" = "auth"."uid"())))));
 
 
 
-CREATE POLICY "Użytkownicy mogą aktualizować fiszki w swoich zestawach" ON "public"."flashcards" FOR UPDATE TO "authenticated" USING ((EXISTS ( SELECT 1
-   FROM "public"."flashcards_set"
-  WHERE (("flashcards_set"."id" = "flashcards"."flashcards_set_id") AND ("flashcards_set"."owner_id" = "auth"."uid"())))));
-
-
-
-CREATE POLICY "Użytkownicy mogą dodawać fiszki do swoich zestawów" ON "public"."flashcards" FOR INSERT TO "authenticated" WITH CHECK ((EXISTS ( SELECT 1
-   FROM "public"."flashcards_set"
-  WHERE (("flashcards_set"."id" = "flashcards"."flashcards_set_id") AND ("flashcards_set"."owner_id" = "auth"."uid"())))));
+CREATE POLICY "Fiszki: Wyświetlanie w dostępnych zestawach" ON "public"."flashcards" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
+   FROM "public"."flashcards_set" "fs"
+  WHERE (("fs"."id" = "flashcards"."flashcards_set_id") AND (("fs"."owner_id" = "auth"."uid"()) OR (EXISTS ( SELECT 1
+           FROM "public"."flashcards_set_shares" "s"
+          WHERE (("s"."flashcards_set_id" = "fs"."id") AND ("s"."user_id" = "auth"."uid"())))))))));
 
 
 
@@ -859,17 +865,7 @@ CREATE POLICY "Użytkownicy mogą dodawać tagi do swoich fiszek" ON "public"."f
 
 
 
-CREATE POLICY "Użytkownicy mogą odczytywać własne i udostępnione im zesta" ON "public"."flashcards_set" FOR SELECT TO "authenticated" USING ((("owner_id" = "auth"."uid"()) OR (EXISTS ( SELECT 1
-   FROM "public"."flashcards_set_shares"
-  WHERE (("flashcards_set_shares"."flashcards_set_id" = "flashcards_set"."id") AND ("flashcards_set_shares"."user_id" = "auth"."uid"()))))));
-
-
-
 CREATE POLICY "Użytkownicy mogą odczytywać własny profil" ON "public"."profiles" FOR SELECT USING (("auth"."uid"() = "id"));
-
-
-
-CREATE POLICY "Użytkownicy mogą tworzyć nowe zestawy" ON "public"."flashcards_set" FOR INSERT TO "authenticated" WITH CHECK (("owner_id" = "auth"."uid"()));
 
 
 
@@ -878,18 +874,6 @@ CREATE POLICY "Użytkownicy mogą tworzyć swoje sesje" ON "public"."sessions" F
 
 
 CREATE POLICY "Użytkownicy mogą tworzyć tagi" ON "public"."tags" FOR INSERT TO "authenticated" WITH CHECK (true);
-
-
-
-CREATE POLICY "Użytkownicy mogą usuwać fiszki ze swoich zestawów" ON "public"."flashcards" FOR DELETE TO "authenticated" USING ((( SELECT "flashcards_set"."owner_id"
-   FROM "public"."flashcards_set"
-  WHERE ("flashcards_set"."id" = "flashcards"."flashcards_set_id")) = "auth"."uid"()));
-
-
-
-CREATE POLICY "Użytkownicy mogą wyświetlać fiszki z ich zestawów" ON "public"."flashcards" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
-   FROM "public"."flashcards_set"
-  WHERE (("flashcards_set"."id" = "flashcards"."flashcards_set_id") AND ("flashcards_set"."owner_id" = "auth"."uid"())))));
 
 
 
@@ -904,18 +888,6 @@ CREATE POLICY "Użytkownicy mogą wyświetlać swoje sesje" ON "public"."session
 
 
 
-CREATE POLICY "Użytkownicy z rolą full mogą modyfikować fiszki" ON "public"."flashcards" TO "authenticated" USING ((EXISTS ( SELECT 1
-   FROM "public"."flashcards_set_shares"
-  WHERE (("flashcards_set_shares"."flashcards_set_id" = "flashcards"."flashcards_set_id") AND ("flashcards_set_shares"."user_id" = "auth"."uid"()) AND ("flashcards_set_shares"."role" = 'full'::"public"."share_role")))));
-
-
-
-CREATE POLICY "Użytkownicy z rolą learning mogą wyświetlać fiszki" ON "public"."flashcards" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
-   FROM "public"."flashcards_set_shares"
-  WHERE (("flashcards_set_shares"."flashcards_set_id" = "flashcards"."flashcards_set_id") AND ("flashcards_set_shares"."user_id" = "auth"."uid"()) AND ("flashcards_set_shares"."role" = 'learning'::"public"."share_role")))));
-
-
-
 CREATE POLICY "Wszyscy mogą wyświetlać tagi" ON "public"."tags" FOR SELECT TO "authenticated" USING (true);
 
 
@@ -924,17 +896,9 @@ CREATE POLICY "Właściciele i odbiorcy mogą odczytywać udostępnienia" ON "pu
 
 
 
-CREATE POLICY "Właściciele mogą aktualizować swoje zestawy" ON "public"."flashcards_set" FOR UPDATE TO "authenticated" USING (("auth"."uid"() = "owner_id"));
-
-
-
 CREATE POLICY "Właściciele mogą modyfikować udostępnienia" ON "public"."flashcards_set_shares" FOR UPDATE TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."flashcards_set"
   WHERE (("flashcards_set"."id" = "flashcards_set_shares"."flashcards_set_id") AND ("flashcards_set"."owner_id" = "auth"."uid"())))));
-
-
-
-CREATE POLICY "Właściciele mogą tworzyć zestawy" ON "public"."flashcards_set" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "owner_id"));
 
 
 
@@ -958,31 +922,31 @@ CREATE POLICY "Właściciele mogą usuwać udostępnienia swoich zestawów" ON "
 
 
 
+CREATE POLICY "Zestawy: Aktualizacja przez właściciela" ON "public"."flashcards_set" FOR UPDATE TO "authenticated" USING (("auth"."uid"() = "owner_id")) WITH CHECK (("auth"."uid"() = "owner_id"));
+
+
+
+CREATE POLICY "Zestawy: Tworzenie przez zalogowanych użytkowników" ON "public"."flashcards_set" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "owner_id"));
+
+
+
+CREATE POLICY "Zestawy: Usuwanie przez właściciela" ON "public"."flashcards_set" FOR DELETE TO "authenticated" USING (("auth"."uid"() = "owner_id"));
+
+
+
+CREATE POLICY "Zestawy: Wyświetlanie własnych i udostępnionych" ON "public"."flashcards_set" FOR SELECT TO "authenticated" USING ((("auth"."uid"() = "owner_id") OR (EXISTS ( SELECT 1
+   FROM "public"."flashcards_set_shares" "s"
+  WHERE (("s"."flashcards_set_id" = "flashcards_set"."id") AND ("s"."user_id" = "auth"."uid"()))))));
+
+
+
 ALTER TABLE "public"."flashcards" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."flashcards_set" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "flashcards_set_delete_policy" ON "public"."flashcards_set" FOR DELETE USING (("auth"."uid"() = "owner_id"));
-
-
-
-CREATE POLICY "flashcards_set_insert_policy" ON "public"."flashcards_set" FOR INSERT WITH CHECK (("auth"."uid"() = "owner_id"));
-
-
-
-CREATE POLICY "flashcards_set_select_policy" ON "public"."flashcards_set" FOR SELECT USING ((("auth"."uid"() = "owner_id") OR (EXISTS ( SELECT 1
-   FROM "public"."flashcards_set_shares"
-  WHERE (("flashcards_set_shares"."flashcards_set_id" = "flashcards_set"."id") AND ("flashcards_set_shares"."user_id" = "auth"."uid"()))))));
-
-
-
 ALTER TABLE "public"."flashcards_set_shares" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "flashcards_set_update_policy" ON "public"."flashcards_set" FOR UPDATE USING (("auth"."uid"() = "owner_id"));
-
 
 
 ALTER TABLE "public"."flashcards_tags" ENABLE ROW LEVEL SECURITY;
@@ -1014,12 +978,6 @@ CREATE POLICY "użytkownicy mogą wyświetlać własne udostępnienia" ON "publi
 
 
 
-CREATE POLICY "użytkownicy mogą wyświetlać zestawy jako właściciel lub u" ON "public"."flashcards_set" FOR SELECT TO "authenticated" USING ((("auth"."uid"() = "owner_id") OR (EXISTS ( SELECT 1
-   FROM "public"."flashcards_set_shares"
-  WHERE (("flashcards_set_shares"."flashcards_set_id" = "flashcards_set"."id") AND ("flashcards_set_shares"."user_id" = "auth"."uid"()))))));
-
-
-
 
 
 ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
@@ -1029,6 +987,9 @@ GRANT USAGE ON SCHEMA "public" TO "postgres";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
+
+
+
 
 
 

@@ -19,6 +19,7 @@ export class FlashcardsSuggestionService {
   private static getOpenAIClient(): OpenAI {
     const openrouterApiKey = process.env.OPENROUTER_API_KEY;
     if (!openrouterApiKey) {
+      console.error("Missing Openrouter API key");
       throw new Error("Missing Openrouter API key");
     }
     return new OpenAI({
@@ -38,22 +39,29 @@ export class FlashcardsSuggestionService {
 
     const openai = this.getOpenAIClient();
 
-    // Call Openrouter AI service to generate suggestions
-    const response = await openai.completions.create({
-      model: "openai/gpt-3.5-turbo", // Można dostosować model według potrzeb
-      prompt: `Przeanalizuj poniższy tekst i wygeneruj fiszki z pytaniami i odpowiedziami:
-      
-      ${text}
-      
-      Zwróć tablicę obiektów JSON w formacie:
-      [{"question": "pytanie1", "answer": "odpowiedź1"}, {"question": "pytanie2", "answer": "odpowiedź2"}]`,
-      max_tokens: 2000,
-      temperature: 0.7,
-    });
-
     try {
+      // Call Openrouter AI service to generate suggestions
+      const response = await openai.chat.completions.create({
+        model: "google/gemini-2.5-flash-preview-05-20", // Można dostosować model według potrzeb
+        messages: [
+          {
+            role: "system",
+            content: `Przeanalizuj poniższy tekst i wygeneruj fiszki z pytaniami i odpowiedziami. Zwróć tablicę obiektów JSON w formacie: [{"question": "pytanie1", "answer": "odpowiedź1"}, {"question": "pytanie2", "answer": "odpowiedź2"}]`,
+          },
+          {
+            role: "user",
+            content: text,
+          },
+        ],
+        max_tokens: 2000,
+        temperature: 0.7,
+        response_format: { type: "json_object" },
+      });
+
       // Parse the JSON response
-      const parsedContent = JSON.parse(response.choices[0]?.text || "[]");
+      const parsedContent = JSON.parse(
+        response.choices[0]?.message.content || "[]"
+      );
 
       // Validate and map to AISuggestionDTO with unique IDs
       const suggestions: AISuggestionDTO[] = Array.isArray(parsedContent)
@@ -68,8 +76,13 @@ export class FlashcardsSuggestionService {
       suggestions.forEach(setSuggestion);
       return suggestions;
     } catch (error) {
-      console.error("Failed to parse AI response:", error);
-      return [];
+      console.error("Failed to generate or parse AI response:", error);
+      // Let's rethrow or handle it as an empty array for now
+      // For debugging, it's better to see the actual error in the API response.
+      if (error instanceof Error) {
+        throw new Error(`AI service failed: ${error.message}`);
+      }
+      throw new Error("AI service failed with an unknown error.");
     }
   }
 

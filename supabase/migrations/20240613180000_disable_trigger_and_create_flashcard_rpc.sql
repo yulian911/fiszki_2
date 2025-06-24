@@ -13,7 +13,10 @@ CREATE OR REPLACE FUNCTION public.create_flashcard_and_update_tsv(
     p_answer TEXT,
     p_source "public"."flashcard_source"
 )
-RETURNS SETOF "public"."flashcards" AS $$
+RETURNS SETOF "public"."flashcards"
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 DECLARE
     new_flashcard_id UUID;
 BEGIN
@@ -30,4 +33,4 @@ BEGIN
     -- Return the newly created and updated flashcard
     RETURN QUERY SELECT * FROM "public"."flashcards" WHERE id = new_flashcard_id;
 END;
-$$ LANGUAGE plpgsql; 
+$$; 
